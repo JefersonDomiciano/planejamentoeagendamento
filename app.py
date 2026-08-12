@@ -9,12 +9,16 @@ import datetime
 def get_sheet():
     scope = ['https://www.googleapis.com/auth/spreadsheets', 'https://www.googleapis.com/auth/drive']
     
-    # Lê o bloco [gcp] inteiro direto dos secrets do Streamlit
+    # Puxa o dicionário e garante que a chave privada recupere o formato correto de PEM com quebras de linha
     creds_dict = dict(st.secrets["gcp"])
     
-    # Garante que as quebras de linha da chave privada sejam interpretadas corretamente
-    if "private_key" in creds_dict:
-        creds_dict["private_key"] = creds_dict["private_key"].replace("\\n", "\n")
+    pk = creds_dict["private_key"]
+    if "-----BEGIN" not in pk:
+        # Se por acaso colou sem os cabeçalhos
+        pk = f"-----BEGIN PRIVATE KEY-----\n{pk}\n-----END PRIVATE KEY-----"
+    
+    # Garante que qualquer barra invertida n vire quebra de linha real
+    creds_dict["private_key"] = pk.replace("\\n", "\n")
 
     creds = Credentials.from_service_account_info(creds_dict, scopes=scope)
     client = gspread.authorize(creds)
