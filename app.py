@@ -66,14 +66,12 @@ def conectar_google_sheets():
     try:
         if "gcp_service_account" in st.secrets:
             creds_dict = dict(st.secrets["gcp_service_account"])
-            # Garante correção de formatação da chave privada caso venha sem quebras de linha corretas
             if "private_key" in creds_dict:
                 creds_dict["private_key"] = creds_dict["private_key"].replace("\\n", "\n")
             client = gspread.service_account_from_dict(creds_dict)
             sheet = client.open("ControleDeCargasLogistica") 
             return sheet
-    except Exception as e:
-        # Modo silencioso para fallback local se falhar o Sheets
+    except Exception:
         pass
     return None
 
@@ -241,7 +239,7 @@ def gerar_pdf(df):
         pdf.cell(larguras[6], 6, str(row.get("status", ""))[:15], 1, 0, "C")
         pdf.ln()
 
-    return bytes(pdf.output(dest='S'))
+    return pdf.output(dest='S').encode('latin1')
 
 st.title("🚚 Painel de Controle de Cargas e Agendamentos")
 
