@@ -8,7 +8,6 @@ import openpyxl
 from openpyxl.styles import Font, Alignment, PatternFill, Border, Side
 from openpyxl.utils import get_column_letter
 import gspread
-from oauth2client.service_account import ServiceAccountCredentials
 
 st.set_page_config(
     page_title="Gestão de Cargas - Logística",
@@ -65,23 +64,15 @@ st.markdown(
 @st.cache_resource
 def conectar_google_sheets():
     try:
-        scope = [
-            "https://spreadsheets.google.com/feeds",
-            "https://www.googleapis.com/auth/drive"
-        ]
-        
+        # Usa a forma nativa recomendada pelo gspread para dicionário de credenciais
         if "gcp_service_account" in st.secrets:
             creds_dict = dict(st.secrets["gcp_service_account"])
-            # Garante que as quebras de linha da chave privada sejam tratadas corretamente se vierem coladas
-            if "private_key" in creds_dict:
-                creds_dict["private_key"] = creds_dict["private_key"].replace("\\n", "\n")
-            creds = ServiceAccountCredentials.from_json_keyfile_dict(creds_dict, scope)
+            client = gspread.service_account_from_dict(creds_dict)
         elif os.path.exists("serviceAccountKey.json"):
-            creds = ServiceAccountCredentials.from_json_keyfile_name("serviceAccountKey.json", scope)
+            client = gspread.service_account(filename="serviceAccountKey.json")
         else:
             return None
             
-        client = gspread.authorize(creds)
         sheet = client.open("ControleDeCargasLogistica") 
         return sheet
     except Exception as e:
