@@ -1,0 +1,13 @@
+{
+  "type": "service_account",
+  "project_id": "sturdy-spark-464316-c4",
+  "private_key_id": "c6d0e2373b5a74d12b6dcfc34bd4323bcdea7a2c",
+  "private_key": "-----BEGIN PRIVATE KEY-----\nMIIEvQIBADANBgkqhkiG9w0BAQEFAASCBKcwggSjAgEAAoIBAQDGlf3fINr5nCSy\nfNacyvrXMbR6PoFHHzbiSIjSDxtTax2wZpqM6THSHwlYvm90GEyfCxjr8ID1+bzz\n5tHuMK0c+RzURMjx5ACEIZqLPvXgqrV0D4qumzi+FQaX0vFdsjACx/xfB583dsFe\nWOE1CSv72QVYa+3UeQ1QzPPCWk9pFBnBPM7xIkhqzlPnHeyNvQ0dmOQsUN35n73F\n3pykzdEFn9Op2NmybMEbk3JgB2g35VTOLAytHntWobQ9Yb63bS+tcoxIa10+MFDP\nGa+7UwhQwG89tzpX0/04EW23sNeZpGamsLES1fyKHgU06R1pN6fTB0pjHG+a/p85\nTGL4jGdXAgMBAAECggEACKqLBa29YJ87yr4/71+8Sp/UrHEF20C1eHKJ5gDaxG0s\nQoJ3xCZ5Eh5gngrRelOFJHurfsBkIFfhsxMjni1poJYOeAT4b/XvP9TnlaQNvtw0\nRvhWqQAFHeZ0/zMpbVlVVwm7Lbp7bEQ2dBOU4GeiD7+MyCsNmfQebKRFDvo59O/j\nz+uVqUxVDQ+2brQXBlxlPScpJi26uH5YbOGAfhVy3MrsbwNqUFDWaIcpzu3XiEf7\n8J/e/NZWhVuI4fc4xnuE/szw2SnhyIAvRDLSrkNTILYRt8PuRwXsIJyhJNqqtV+1\nafpI/c5jvddnNg/iDur6pajfS77Qzp15RZ7C/DqVAQKBgQD9PSbM1I0qvlfw7KOU\ng2qs+jrvSmw2pViojCCTO1p9nOTuOP5BzS6R01ZDs1g4NxMrgCDb6Wfo3d3grp2f\niHU2CLvyJyod+gWXilxZx2v9l0spIYFWsUOd9Ppw6gfRGm2bVr1mE8iwYlmkpu5B\nvn3Rh3BlUOQdtl4Tbv7ACgX59wKBgQDIwEp/tJJmO0C5xDATE67JQ44WD3cDJaME\nd4LWP75uD8aaFCJw5JpQ0N7O49ql944dE7Mlmg/INI2PwOHztTU/QQEbMdalGE9D\ny+R2b/ar1xGFUcTsVlg8Th8QuI1+y55gdwD9pqvFgslLqDKzrGxcJVJsWxJRaC6y\n5d6W2UKloQKBgQC+14/e+yurk6iYcu1P5b3FwAob/T0R7Yej9X4zFp66XTuVX7QV\nCLjYwqiW+pg4PSEgPj4FHJ/nORSV12IIMQEMCIcDFYrC7oG6U1YHfqcehB7rT0m2\neH5Zkp4N7ACaD82cLEEtpSkv695cnESfnRwahHQqlkxjK+U3xgUL2kHovwKBgBD1\nLVXcSwGXv7/xcp4p63nU2wvCAquhYkPeVI8Ek3F4o64gRUiEBwUMn8WaOb4LS1Xp\ndBiZCvw+dDbQdEXB6N2PACjr7NXFV+zCLGpUyuF5KWG5pojQQmPVtYoUDN/JE3fS\nlaLXkWr9wUNC0gWbawvdmzjL+KAnzMoP4N2dPKQBAoGAGBWV8cOCUI4XH7ej55QV\nAFXxOn2Y+DcutegW8VsSweWhGINzJIjJt/+wdrtEVlWmrgTDCOZXq2Ux/3LKsA1I\nZtDqZnv1ZgPIZ2xPzBRWNNrNj0Lx5ged07mnrjfoFlhPI7Hs3d8Ijkz9pmUWzCMo\ncfACO55qJdddZDq53+jzTmQ=\n-----END PRIVATE KEY-----\n",
+  "client_email": "logistica-app@sturdy-spark-464316-c4.iam.gserviceaccount.com",
+  "client_id": "106831832823837162152",
+  "auth_uri": "https://accounts.google.com/o/oauth2/auth",
+  "token_uri": "https://oauth2.googleapis.com/token",
+  "auth_provider_x509_cert_url": "https://www.googleapis.com/oauth2/v1/certs",
+  "client_x509_cert_url": "https://www.googleapis.com/robot/v1/metadata/x509/logistica-app%40sturdy-spark-464316-c4.iam.gserviceaccount.com",
+  "universe_domain": "googleapis.com"
+}
