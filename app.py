@@ -62,7 +62,6 @@ st.markdown(
     unsafe_allow_html=True,
 )
 
-# Conexão com o Google Sheets usando os Secrets do Streamlit Cloud
 @st.cache_resource
 def conectar_google_sheets():
     try:
@@ -73,6 +72,9 @@ def conectar_google_sheets():
         
         if "gcp_service_account" in st.secrets:
             creds_dict = dict(st.secrets["gcp_service_account"])
+            # Garante que as quebras de linha da chave privada sejam tratadas corretamente se vierem coladas
+            if "private_key" in creds_dict:
+                creds_dict["private_key"] = creds_dict["private_key"].replace("\\n", "\n")
             creds = ServiceAccountCredentials.from_json_keyfile_dict(creds_dict, scope)
         elif os.path.exists("serviceAccountKey.json"):
             creds = ServiceAccountCredentials.from_json_keyfile_name("serviceAccountKey.json", scope)
@@ -97,7 +99,6 @@ def carregar_dados(nome_aba):
         except Exception:
             pass
     
-    # Fallback caso a planilha falhe temporariamente
     if nome_aba not in st.session_state:
         if nome_aba == "motoristas":
             st.session_state.motoristas = [{"nome": "Carlos Silva"}, {"nome": "João Pereira"}, {"nome": "Maurício"}, {"nome": "Cícero Taveira"}]
@@ -279,9 +280,6 @@ cargas_lista = carregar_dados("cargas")
 motoristas_lista = [m.get("nome") if isinstance(m, dict) else str(m) for m in motoristas_raw if m]
 ajudantes_lista = [a.get("nome") if isinstance(a, dict) else str(a) for a in ajudantes_raw if a]
 
-# ----------------------------------------------------
-# 1. PAINEL (KANBAN)
-# ----------------------------------------------------
 if menu == "📋 Painel (Kanban)":
     st.subheader("Visão Geral das Cargas")
 
@@ -404,9 +402,6 @@ if menu == "📋 Painel (Kanban)":
                                 st.success("Atualizado!")
                                 st.rerun()
 
-# ----------------------------------------------------
-# 2. NOVA CARGA
-# ----------------------------------------------------
 elif menu == "➕ Nova Carga":
     st.subheader("Cadastrar Novo Agendamento de Carga")
 
@@ -458,9 +453,6 @@ elif menu == "➕ Nova Carga":
             else:
                 st.error("Preencha o motorista e a região de destino.")
 
-# ----------------------------------------------------
-# 3. CADASTROS (EQUIPE)
-# ----------------------------------------------------
 elif menu == "👥 Cadastros (Equipe)":
     st.subheader("Gerenciamento de Motoristas e Ajudantes")
 
@@ -502,9 +494,6 @@ elif menu == "👥 Cadastros (Equipe)":
                 excluir_dado("ajudantes", "nome", a)
                 st.rerun()
 
-# ----------------------------------------------------
-# 4. RELATÓRIO SEMANAL DE EXECUÇÃO E EXPORTAÇÃO
-# ----------------------------------------------------
 elif menu == "📊 Relatório Semanal":
     st.subheader("Relatório de Execução Semanal")
 
