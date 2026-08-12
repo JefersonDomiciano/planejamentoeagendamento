@@ -1,5 +1,6 @@
 import datetime
 import io
+import os
 import pandas as pd
 import streamlit as st
 import firebase_admin
@@ -61,18 +62,21 @@ st.markdown(
     unsafe_allow_html=True,
 )
 
-# Inicialização segura do Firebase sem quebrar o app
+# Inicialização segura do Firebase isolando erros do arquivo JSON
 db = None
 usar_firebase = False
 
-try:
-    if not firebase_admin._apps:
-        cred = credentials.Certificate("serviceAccountKey.json")
-        firebase_admin.initialize_app(cred)
-    db = firestore.client()
-    usar_firebase = True
-except Exception:
-    usar_firebase = False
+if os.path.exists("serviceAccountKey.json"):
+    try:
+        if not firebase_admin._apps:
+            cred = credentials.Certificate("serviceAccountKey.json")
+            firebase_admin.initialize_app(cred)
+        db = firestore.client()
+        usar_firebase = True
+    except Exception:
+        usar_firebase = False
+
+if not usar_firebase:
     if "motoristas" not in st.session_state:
         st.session_state.motoristas = ["Carlos Silva", "João Pereira", "Maurício", "Cícero Taveira"]
     if "ajudantes" not in st.session_state:
@@ -255,7 +259,7 @@ def gerar_pdf(df):
 st.title("🚚 Painel de Controle de Cargas e Agendamentos")
 
 if not usar_firebase:
-    st.warning("⚠️ Atenção: O arquivo de credenciais do Firebase (`serviceAccountKey.json`) apresentou erro de formatação ou não foi encontrado. Rodando em memória local temporariamente.")
+    st.warning("⚠️ Atenção: O arquivo `serviceAccountKey.json` está corrompido ou ausente. O painel está rodando no modo local com salvamento em sessão.")
 
 menu = st.radio(
     "Menu Principal",
