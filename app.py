@@ -12,9 +12,12 @@ def get_sheet():
     
     creds_dict = dict(st.secrets["gcp"])
     
-    # Pega a chave crua e formata no padrão PEM correto com quebras de linha a cada 64 caracteres
-    raw_key = creds_dict["private_key"].replace("-----BEGIN PRIVATE KEY-----", "").replace("-----END PRIVATE KEY-----", "").strip()
-    formatted_key = "\n".join(textwrap.wrap(raw_key, 64))
+    # Limpa qualquer formatação incorreta e monta o PEM perfeitamente
+    pk = creds_dict["private_key"]
+    pk = pk.replace("-----BEGIN PRIVATE KEY-----", "").replace("-----END PRIVATE KEY-----", "")
+    pk = "".join(pk.split()) # Remove espaços, quebras e barras invertidas indesejadas
+    
+    formatted_key = "\n".join(textwrap.wrap(pk, 64))
     creds_dict["private_key"] = f"-----BEGIN PRIVATE KEY-----\n{formatted_key}\n-----END PRIVATE KEY-----\n"
 
     creds = Credentials.from_service_account_info(creds_dict, scopes=scope)
