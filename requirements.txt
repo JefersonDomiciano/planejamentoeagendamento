@@ -1,5 +1,2 @@
-streamlit
-firebase-admin
-fpdf2
-openpyxl
-pandas
+gspread
+oauth2client
