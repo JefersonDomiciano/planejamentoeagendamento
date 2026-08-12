@@ -1,43 +1,21 @@
 import streamlit as st
 import pandas as pd
-import gspread
-from google.oauth2.service_account import Credentials
 import datetime
-import textwrap
 
-# --- CONFIGURAÇÃO DA CONEXÃO COM GOOGLE SHEETS ---
-@st.cache_resource
-def get_sheet():
-    scope = ['https://www.googleapis.com/auth/spreadsheets', 'https://www.googleapis.com/auth/drive']
-    
-    creds_dict = dict(st.secrets["gcp"])
-    
-    # Limpa qualquer formatação incorreta e monta o PEM perfeitamente
-    pk = creds_dict["private_key"]
-    pk = pk.replace("-----BEGIN PRIVATE KEY-----", "").replace("-----END PRIVATE KEY-----", "")
-    pk = "".join(pk.split()) # Remove espaços, quebras e barras invertidas indesejadas
-    
-    formatted_key = "\n".join(textwrap.wrap(pk, 64))
-    creds_dict["private_key"] = f"-----BEGIN PRIVATE KEY-----\n{formatted_key}\n-----END PRIVATE KEY-----\n"
-
-    creds = Credentials.from_service_account_info(creds_dict, scopes=scope)
-    client = gspread.authorize(creds)
-    return client.open("Banco_Logistica").sheet1
+# --- CONFIGURAÇÃO DA PLANILHA PÚBLICA ---
+# Substitua abaixo pelo ID real da sua planilha (aquela letra miúda que fica na URL entre /d/ e /edit)
+PLANILHA_ID = "COLE_O_ID_DA_ SUA_PLANILHA_AQUI"
+url = f"https://docs.google.com/spreadsheets/d/{PLANILHA_ID}/gviz/tq?tqx=out:csv"
 
 # --- FUNÇÕES DE DADOS ---
+@st.cache_data(ttl=10)
 def carregar_dados():
-    sheet = get_sheet()
-    dados = sheet.get_all_records()
-    return pd.DataFrame(dados) if dados else pd.DataFrame(columns=['id', 'motorista', 'destino', 'observacoes', 'ajudantes', 'data_carga', 'data_saida', 'data_entrega', 'status'])
-
-def salvar_nova_carga(carga_dict):
-    sheet = get_sheet()
-    sheet.append_row([
-        carga_dict['id'], carga_dict['motorista'], carga_dict['destino'], 
-        carga_dict['observacoes'], str(carga_dict['ajudantes']), 
-        carga_dict['data_carga'], carga_dict['data_saida'], 
-        carga_dict['data_entrega'], carga_dict['status']
-    ])
+    try:
+        df = pd.read_csv(url)
+        return df
+    except Exception:
+        # Se a planilha estiver vazia, retorna a estrutura padrão
+        return pd.DataFrame(columns=['id', 'motorista', 'destino', 'observacoes', 'ajudantes', 'data_carga', 'data_saida', 'data_entrega', 'status'])
 
 # --- INTERFACE ---
 st.set_page_config(page_title="Painel de Controle de Cargas", layout="wide")
@@ -49,7 +27,10 @@ df_cargas = carregar_dados()
 
 if menu == "📋 Painel (Kanban)":
     st.subheader("Cargas em Aberto")
-    st.dataframe(df_cargas, use_container_width=True)
+    if not df_cargas.empty:
+        st.dataframe(df_cargas, use_container_width=True)
+    else:
+        st.info("Nenhuma carga cadastrada ainda na planilha.")
 
 elif menu == "➕ Nova Carga":
     st.subheader("Cadastrar Nova Carga")
@@ -62,15 +43,5 @@ elif menu == "➕ Nova Carga":
             saida = st.date_input("Data Saída")
             status = st.selectbox("Status", ["Aguardando Carregamento", "Em Trânsito", "Entregue"])
         
-        if st.form_submit_button("Salvar na Planilha"):
-            novo_id = len(df_cargas) + 1
-            nova_carga = {
-                "id": novo_id, "motorista": mot, "destino": dest,
-                "observacoes": "", "ajudantes": "",
-                "data_carga": str(datetime.date.today()),
-                "data_saida": str(saida), "data_entrega": "",
-                "status": status
-            }
-            salvar_nova_carga(nova_carga)
-            st.success("Carga salva com sucesso no Google Sheets!")
-            st.rerun()
+        if st.form_submit_button("Salvar Informações"):
+            st.success("Para registrar novos dados permanentemente com salvamento automático na planilha, preencha direto na sua planilha do Google Sheets aberta no navegador!")
