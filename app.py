@@ -3,22 +3,19 @@ import pandas as pd
 import gspread
 from google.oauth2.service_account import Credentials
 import datetime
+import textwrap
 
 # --- CONFIGURAÇÃO DA CONEXÃO COM GOOGLE SHEETS ---
 @st.cache_resource
 def get_sheet():
     scope = ['https://www.googleapis.com/auth/spreadsheets', 'https://www.googleapis.com/auth/drive']
     
-    # Puxa o dicionário e garante que a chave privada recupere o formato correto de PEM com quebras de linha
     creds_dict = dict(st.secrets["gcp"])
     
-    pk = creds_dict["private_key"]
-    if "-----BEGIN" not in pk:
-        # Se por acaso colou sem os cabeçalhos
-        pk = f"-----BEGIN PRIVATE KEY-----\n{pk}\n-----END PRIVATE KEY-----"
-    
-    # Garante que qualquer barra invertida n vire quebra de linha real
-    creds_dict["private_key"] = pk.replace("\\n", "\n")
+    # Pega a chave crua e formata no padrão PEM correto com quebras de linha a cada 64 caracteres
+    raw_key = creds_dict["private_key"].replace("-----BEGIN PRIVATE KEY-----", "").replace("-----END PRIVATE KEY-----", "").strip()
+    formatted_key = "\n".join(textwrap.wrap(raw_key, 64))
+    creds_dict["private_key"] = f"-----BEGIN PRIVATE KEY-----\n{formatted_key}\n-----END PRIVATE KEY-----\n"
 
     creds = Credentials.from_service_account_info(creds_dict, scopes=scope)
     client = gspread.authorize(creds)
