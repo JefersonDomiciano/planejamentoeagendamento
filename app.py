@@ -1,5 +1,6 @@
 import datetime
 import io
+import os
 import pandas as pd
 import streamlit as st
 from fpdf import FPDF
@@ -61,7 +62,7 @@ st.markdown(
     unsafe_allow_html=True,
 )
 
-# Configuração de Conexão com o Google Sheets
+# Conexão com o Google Sheets usando os Secrets do Streamlit Cloud
 @st.cache_resource
 def conectar_google_sheets():
     try:
@@ -69,24 +70,24 @@ def conectar_google_sheets():
             "https://spreadsheets.google.com/feeds",
             "https://www.googleapis.com/auth/drive"
         ]
-        # Se você estiver usando um arquivo JSON de credenciais do Google Cloud Service Account
-        if os.path.exists("serviceAccountKey.json"):
-            creds = ServiceAccountCredentials.from_json_keyfile_name("serviceAccountKey.json", scope)
-        else:
-            # Alternativa usando Streamlit Secrets se preferir configurar na nuvem
+        
+        if "gcp_service_account" in st.secrets:
             creds_dict = dict(st.secrets["gcp_service_account"])
             creds = ServiceAccountCredentials.from_json_keyfile_dict(creds_dict, scope)
+        elif os.path.exists("serviceAccountKey.json"):
+            creds = ServiceAccountCredentials.from_json_keyfile_name("serviceAccountKey.json", scope)
+        else:
+            return None
             
         client = gspread.authorize(creds)
-        # Substitua pelo nome exato da sua planilha no Google Drive
         sheet = client.open("ControleDeCargasLogistica") 
         return sheet
     except Exception as e:
+        st.error(f"Erro detalhado de conexão: {e}")
         return None
 
 sh = conectar_google_sheets()
 
-# Funções de manipulação de dados via Google Sheets (com fallback para session_state em caso de falha)
 def carregar_dados(nome_aba):
     if sh is not None:
         try:
@@ -96,7 +97,7 @@ def carregar_dados(nome_aba):
         except Exception:
             pass
     
-    # Fallback local
+    # Fallback caso a planilha falhe temporariamente
     if nome_aba not in st.session_state:
         if nome_aba == "motoristas":
             st.session_state.motoristas = [{"nome": "Carlos Silva"}, {"nome": "João Pereira"}, {"nome": "Maurício"}, {"nome": "Cícero Taveira"}]
@@ -256,7 +257,7 @@ def gerar_pdf(df):
 st.title("🚚 Painel de Controle de Cargas e Agendamentos")
 
 if sh is None:
-    st.warning("⚠️ Atenção: Não foi possível conectar ao Google Sheets. Verifique o arquivo de credenciais (`serviceAccountKey.json`) ou o nome da planilha.")
+    st.warning("⚠️ Atenção: Não foi possível conectar ao Google Sheets. Verifique se os Secrets no Streamlit Cloud foram preenchidos corretamente e se a planilha foi compartilhada com o e-mail de serviço.")
 
 menu = st.radio(
     "Menu Principal",
@@ -554,4 +555,3 @@ elif menu == "📊 Relatório Semanal":
                 file_name='relatorio_de_cargas.pdf',
                 mime='application/pdf',
             )
-            
