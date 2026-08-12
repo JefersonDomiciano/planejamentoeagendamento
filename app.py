@@ -8,9 +8,22 @@ import datetime
 @st.cache_resource
 def get_sheet():
     scope = ['https://www.googleapis.com/auth/spreadsheets', 'https://www.googleapis.com/auth/drive']
-    # Transforma os secrets em um dicionário puro para o Google Auth
-    creds_dict = dict(st.secrets["gcp"])
-    creds = Credentials.from_service_account_info(creds_dict, scopes=scope)
+    
+    # Dicionário completo e estruturado exigido pelo Google Auth
+    creds_info = {
+        "type": "service_account",
+        "project_id": "logistica-app",
+        "private_key_id": "private_key",
+        "private_key": st.secrets["gcp_private_key"].replace("\\n", "\n"),
+        "client_email": st.secrets["gcp_service_account_email"],
+        "client_id": "123456789",
+        "auth_uri": "https://accounts.google.com/o/oauth2/auth",
+        "token_uri": "https://oauth2.googleapis.com/token",
+        "auth_provider_x509_cert_url": "https://www.googleapis.com/oauth2/v1/certs",
+        "client_x509_cert_url": "https://www.googleapis.com/robot/v1/metadata/x509/" + st.secrets["gcp_service_account_email"].replace("@", "%40")
+    }
+    
+    creds = Credentials.from_service_account_info(creds_info, scopes=scope)
     client = gspread.authorize(creds)
     return client.open("Banco_Logistica").sheet1
 
