@@ -61,17 +61,17 @@ st.markdown(
     unsafe_allow_html=True,
 )
 
-@st.cache_resource
-def init_firebase():
+# Inicialização segura do Firebase sem quebrar o app
+db = None
+usar_firebase = False
+
+try:
     if not firebase_admin._apps:
         cred = credentials.Certificate("serviceAccountKey.json")
         firebase_admin.initialize_app(cred)
-    return firestore.client()
-
-try:
-    db = init_firebase()
+    db = firestore.client()
     usar_firebase = True
-except Exception as e:
+except Exception:
     usar_firebase = False
     if "motoristas" not in st.session_state:
         st.session_state.motoristas = ["Carlos Silva", "João Pereira", "Maurício", "Cícero Taveira"]
@@ -81,45 +81,64 @@ except Exception as e:
         st.session_state.cargas = []
 
 def carregar_dados(colecao):
-    if usar_firebase:
-        docs = db.collection(colecao).stream()
-        return [doc.to_dict() for doc in docs]
+    if usar_firebase and db is not None:
+        try:
+            docs = db.collection(colecao).stream()
+            return [doc.to_dict() for doc in docs]
+        except Exception:
+            return st.session_state.get(colecao, [])
     else:
         return st.session_state.get(colecao, [])
 
 def salvar_dado(colecao, dados, doc_id):
-    if usar_firebase:
-        db.collection(colecao).document(str(doc_id)).set(dados)
-    else:
-        if colecao == "cargas":
-            encontrado = False
-            for i, c in enumerate(st.session_state.cargas):
-                if c.get("id") == doc_id:
-                    st.session_state.cargas[i] = dados
-                    encontrado = True
-                    break
-            if not encontrado:
-                st.session_state.cargas.append(dados)
+    if usar_firebase and db is not None:
+        try:
+            db.collection(colecao).document(str(doc_id)).set(dados)
+            return
+        except Exception:
+            pass
+    
+    if colecao == "cargas":
+        encontrado = False
+        for i, c in enumerate(st.session_state.cargas):
+            if c.get("id") == doc_id:
+                st.session_state.cargas[i] = dados
+                encontrado = True
+                break
+        if not encontrado:
+            st.session_state.cargas.append(dados)
 
 def adicionar_dado(colecao, dados, doc_id=None):
-    if usar_firebase:
-        if doc_id:
-            db.collection(colecao).document(str(doc_id)).set(dados)
-        else:
-            db.collection(colecao).add(dados)
-    else:
-        st.session_state[colecao].append(dados)
+    if usar_firebase and db is not None:
+        try:
+            if doc_id:
+                db.collection(colecao).document(str(doc_id)).set(dados)
+            else:
+                db.collection(colecao).add(dados)
+            return
+        except Exception:
+            pass
+            
+    if colecao not in st.session_state:
+        st.session_state[colecao] = []
+    st.session_state[colecao].append(dados)
 
 def excluir_dado(colecao, campo_filtro, valor):
-    if usar_firebase:
-        docs = db.collection(colecao).where(campo_filtro, "==", valor).stream()
-        for doc in docs:
-            doc.reference.delete()
-    else:
-        if colecao == "cargas":
-            st.session_state.cargas = [c for c in st.session_state.cargas if c["id"] != valor]
-        else:
-            st.session_state.motoristas = [m for m in st.session_state.motoristas if m != valor]
+    if usar_firebase and db is not None:
+        try:
+            docs = db.collection(colecao).where(campo_filtro, "==", valor).stream()
+            for doc in docs:
+                doc.reference.delete()
+            return
+        except Exception:
+            pass
+            
+    if colecao == "cargas":
+        st.session_state.cargas = [c for c in st.session_state.cargas if c.get("id") != valor]
+    elif colecao == "motoristas":
+        st.session_state.motoristas = [m for m in st.session_state.motoristas if (m.get("nome") if isinstance(m, dict) else m) != valor]
+    elif colecao == "ajudantes":
+        st.session_state.ajudantes = [a for a in st.session_state.ajudantes if (a.get("nome") if isinstance(a, dict) else a) != valor]
 
 def formatar_data_br(data_str):
     if not data_str:
@@ -236,7 +255,7 @@ def gerar_pdf(df):
 st.title("🚚 Painel de Controle de Cargas e Agendamentos")
 
 if not usar_firebase:
-    st.warning("⚠️ Atenção: O arquivo de credenciais do Firebase (`serviceAccountKey.json`) apresentou erro ou não foi encontrado. Rodando em memória local.")
+    st.warning("⚠️ Atenção: O arquivo de credenciais do Firebase (`serviceAccountKey.json`) apresentou erro de formatação ou não foi encontrado. Rodando em memória local temporariamente.")
 
 menu = st.radio(
     "Menu Principal",
@@ -341,8 +360,7 @@ if menu == "📋 Painel (Kanban)":
                     )
                     if novo_status != carga.get("status"):
                         carga["status"] = novo_status
-                        if usar_firebase:
-                            db.collection("cargas").document(str(carga_id)).update({"status": novo_status})
+                        salvar_dado("cargas", carga, carga_id)
                         st.rerun()
 
                     if st.session_state.get(f"editando_{carga_id}", False):
@@ -456,9 +474,7 @@ elif menu == "👥 Cadastros (Equipe)":
             c_mot1, c_mot2 = st.columns([4, 2])
             c_mot1.text(m)
             if c_mot2.button("Excluir", key=f"del_mot_{m}"):
-                if usar_firebase:
-                    docs = db.collection("motoristas").where("nome", "==", m).stream()
-                    for d in docs: d.reference.delete()
+                excluir_dado("motoristas", "nome", m)
                 st.rerun()
 
     with col2:
@@ -476,9 +492,7 @@ elif menu == "👥 Cadastros (Equipe)":
             c_aju1, c_aju2 = st.columns([4, 2])
             c_aju1.text(a)
             if c_aju2.button("Excluir", key=f"del_aju_{a}"):
-                if usar_firebase:
-                    docs = db.collection("ajudantes").where("nome", "==", a).stream()
-                    for d in docs: d.reference.delete()
+                excluir_dado("ajudantes", "nome", a)
                 st.rerun()
 
 # ----------------------------------------------------
