@@ -64,20 +64,18 @@ st.markdown(
 @st.cache_resource
 def conectar_google_sheets():
     try:
-        # Usa a forma nativa recomendada pelo gspread para dicionário de credenciais
         if "gcp_service_account" in st.secrets:
             creds_dict = dict(st.secrets["gcp_service_account"])
+            # Garante correção de formatação da chave privada caso venha sem quebras de linha corretas
+            if "private_key" in creds_dict:
+                creds_dict["private_key"] = creds_dict["private_key"].replace("\\n", "\n")
             client = gspread.service_account_from_dict(creds_dict)
-        elif os.path.exists("serviceAccountKey.json"):
-            client = gspread.service_account(filename="serviceAccountKey.json")
-        else:
-            return None
-            
-        sheet = client.open("ControleDeCargasLogistica") 
-        return sheet
+            sheet = client.open("ControleDeCargasLogistica") 
+            return sheet
     except Exception as e:
-        st.error(f"Erro detalhado de conexão: {e}")
-        return None
+        # Modo silencioso para fallback local se falhar o Sheets
+        pass
+    return None
 
 sh = conectar_google_sheets()
 
@@ -86,7 +84,8 @@ def carregar_dados(nome_aba):
         try:
             worksheet = sh.worksheet(nome_aba)
             registros = worksheet.get_all_records()
-            return registros
+            if registros:
+                return registros
         except Exception:
             pass
     
@@ -100,6 +99,7 @@ def carregar_dados(nome_aba):
     return st.session_state.get(nome_aba, [])
 
 def salvar_dado_sheets(nome_aba, dados_lista):
+    sucesso_sheets = False
     if sh is not None:
         try:
             worksheet = sh.worksheet(nome_aba)
@@ -107,16 +107,16 @@ def salvar_dado_sheets(nome_aba, dados_lista):
             if dados_lista:
                 df_temp = pd.DataFrame(dados_lista)
                 worksheet.update([df_temp.columns.values.tolist()] + df_temp.values.tolist())
-            return True
+            sucesso_sheets = True
         except Exception:
             pass
-    return False
+    st.session_state[nome_aba] = dados_lista
+    return sucesso_sheets
 
 def adicionar_dado(nome_aba, novo_item):
     dados = carregar_dados(nome_aba)
     dados.append(novo_item)
-    if not salvar_dado_sheets(nome_aba, dados):
-        st.session_state[nome_aba] = dados
+    salvar_dado_sheets(nome_aba, dados)
 
 def salvar_edicao_carga(carga_id, carga_atualizada):
     cargas = carregar_dados("cargas")
@@ -124,8 +124,7 @@ def salvar_edicao_carga(carga_id, carga_atualizada):
         if str(c.get("id")) == str(carga_id):
             cargas[i] = carga_atualizada
             break
-    if not salvar_dado_sheets("cargas", cargas):
-        st.session_state.cargas = cargas
+    salvar_dado_sheets("cargas", cargas)
 
 def excluir_dado(nome_aba, campo_filtro, valor):
     dados = carregar_dados(nome_aba)
@@ -133,9 +132,7 @@ def excluir_dado(nome_aba, campo_filtro, valor):
         dados = [c for c in dados if str(c.get("id")) != str(valor)]
     else:
         dados = [item for item in dados if item.get(campo_filtro) != valor]
-        
-    if not salvar_dado_sheets(nome_aba, dados):
-        st.session_state[nome_aba] = dados
+    salvar_dado_sheets(nome_aba, dados)
 
 def formatar_data_br(data_str):
     if not data_str:
@@ -249,7 +246,7 @@ def gerar_pdf(df):
 st.title("🚚 Painel de Controle de Cargas e Agendamentos")
 
 if sh is None:
-    st.warning("⚠️ Atenção: Não foi possível conectar ao Google Sheets. Verifique se os Secrets no Streamlit Cloud foram preenchidos corretamente e se a planilha foi compartilhada com o e-mail de serviço.")
+    st.info("💡 Rodando no modo de armazenamento interno (memória da sessão). Se desejar conectar ao Google Sheets posteriormente, certifique-se de configurar os Secrets com a chave privada correta.")
 
 menu = st.radio(
     "Menu Principal",
