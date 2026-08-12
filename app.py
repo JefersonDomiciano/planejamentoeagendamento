@@ -8,6 +8,8 @@ from fpdf import FPDF
 import openpyxl
 from openpyxl.styles import Font, Alignment, PatternFill, Border, Side
 from openpyxl.utils import get_column_letter
+import json
+import os
 
 st.set_page_config(
     page_title="Gestão de Cargas - Logística",
@@ -57,7 +59,6 @@ st.markdown(
             color: #8b949e !important;
         }
 
-        /* Remove o fundo e borda dos botões de ação do card, deixando apenas o emoji limpo */
         div[data-testid="stHorizontalBlock"] button {
             background-color: transparent !important;
             border: none !important;
@@ -78,9 +79,15 @@ st.markdown(
 @st.cache_resource
 def init_firebase():
     if not firebase_admin._apps:
-        # Tenta carregar do arquivo local ou dos Secrets do Streamlit Cloud
-        cred = credentials.Certificate("serviceAccountKey.json")
-        firebase_admin.initialize_app(cred)
+        if os.path.exists("serviceAccountKey.json"):
+            cred = credentials.Certificate("serviceAccountKey.json")
+            firebase_admin.initialize_app(cred)
+        elif "firebase" in st.secrets:
+            secret_dict = dict(st.secrets["firebase"])
+            cred = credentials.Certificate(secret_dict)
+            firebase_admin.initialize_app(cred)
+        else:
+            raise Exception("Nenhuma credencial do Firebase encontrada.")
     return firestore.client()
 
 try:
@@ -251,7 +258,7 @@ def gerar_pdf(df):
 st.title("🚚 Painel de Controle de Cargas e Agendamentos")
 
 if not usar_firebase:
-    st.warning("⚠️ Atenção: O arquivo de credenciais do Firebase (`serviceAccountKey.json`) não foi encontrado. Rodando em memória local.")
+    st.warning("⚠️ Atenção: Firebase não configurado. Rodando em memória local temporária.")
 
 menu = st.radio(
     "Menu Principal",
@@ -270,9 +277,7 @@ motoristas_lista = [m.get("nome", m) if isinstance(m, dict) else m for m in carr
 ajudantes_lista = [a.get("nome", a) if isinstance(a, dict) else a for a in carregar_dados("ajudantes")]
 cargas_lista = carregar_dados("cargas")
 
-# ----------------------------------------------------
 # 1. PAINEL (KANBAN)
-# ----------------------------------------------------
 if menu == "📋 Painel (Kanban)":
     st.subheader("Visão Geral das Cargas")
 
@@ -400,9 +405,7 @@ if menu == "📋 Painel (Kanban)":
                                 st.success("Atualizado!")
                                 st.rerun()
 
-# ----------------------------------------------------
 # 2. NOVA CARGA
-# ----------------------------------------------------
 elif menu == "➕ Nova Carga":
     st.subheader("Cadastrar Novo Agendamento de Carga")
 
@@ -411,7 +414,7 @@ elif menu == "➕ Nova Carga":
 
         with col1:
             motorista = st.selectbox("Motorista Responsável", motoristas_lista if motoristas_lista else ["Nenhum cadastrado"])
-            destino = st.text_input("Região / Cidades de Destino", placeholder="Ex: Uberaba, Araxá (Múltiplas entregas)")
+            destino = st.text_input("Região / Cidades de Destino", placeholder="Ex: Uberaba, Araxá")
             observacoes = st.text_area("Observações / Rota", placeholder="Ex: Carga com entregas em lojas diferentes")
 
         with col2:
@@ -452,9 +455,7 @@ elif menu == "➕ Nova Carga":
             else:
                 st.error("Preencha o motorista e a região de destino.")
 
-# ----------------------------------------------------
 # 3. CADASTROS (EQUIPE)
-# ----------------------------------------------------
 elif menu == "👥 Cadastros (Equipe)":
     st.subheader("Gerenciamento de Motoristas e Ajudantes")
 
@@ -500,9 +501,7 @@ elif menu == "👥 Cadastros (Equipe)":
                     for d in docs: d.reference.delete()
                 st.rerun()
 
-# ----------------------------------------------------
-# 4. RELATÓRIO SEMANAL DE EXECUÇÃO E EXPORTAÇÃO
-# ----------------------------------------------------
+# 4. RELATÓRIO SEMANAL
 elif menu == "📊 Relatório Semanal":
     st.subheader("Relatório de Execução Semanal")
 
