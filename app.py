@@ -236,7 +236,7 @@ def gerar_pdf(df):
 st.title("🚚 Painel de Controle de Cargas e Agendamentos")
 
 if not usar_firebase:
-    st.warning("⚠️ Atenção: O arquivo de credenciais do Firebase (`serviceAccountKey.json`) não foi encontrado. Rodando em memória local.")
+    st.warning("⚠️ Atenção: O arquivo de credenciais do Firebase (`serviceAccountKey.json`) apresentou erro ou não foi encontrado. Rodando em memória local.")
 
 menu = st.radio(
     "Menu Principal",
