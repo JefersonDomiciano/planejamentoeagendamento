@@ -1,14 +1,13 @@
 import datetime
 import io
-import os
 import pandas as pd
 import streamlit as st
-import firebase_admin
-from firebase_admin import credentials, firestore
 from fpdf import FPDF
 import openpyxl
 from openpyxl.styles import Font, Alignment, PatternFill, Border, Side
 from openpyxl.utils import get_column_letter
+import gspread
+from oauth2client.service_account import ServiceAccountCredentials
 
 st.set_page_config(
     page_title="Gestão de Cargas - Logística",
@@ -62,87 +61,88 @@ st.markdown(
     unsafe_allow_html=True,
 )
 
-# Inicialização segura do Firebase isolando erros do arquivo JSON
-db = None
-usar_firebase = False
-
-if os.path.exists("serviceAccountKey.json"):
+# Configuração de Conexão com o Google Sheets
+@st.cache_resource
+def conectar_google_sheets():
     try:
-        if not firebase_admin._apps:
-            cred = credentials.Certificate("serviceAccountKey.json")
-            firebase_admin.initialize_app(cred)
-        db = firestore.client()
-        usar_firebase = True
-    except Exception:
-        usar_firebase = False
+        scope = [
+            "https://spreadsheets.google.com/feeds",
+            "https://www.googleapis.com/auth/drive"
+        ]
+        # Se você estiver usando um arquivo JSON de credenciais do Google Cloud Service Account
+        if os.path.exists("serviceAccountKey.json"):
+            creds = ServiceAccountCredentials.from_json_keyfile_name("serviceAccountKey.json", scope)
+        else:
+            # Alternativa usando Streamlit Secrets se preferir configurar na nuvem
+            creds_dict = dict(st.secrets["gcp_service_account"])
+            creds = ServiceAccountCredentials.from_json_keyfile_dict(creds_dict, scope)
+            
+        client = gspread.authorize(creds)
+        # Substitua pelo nome exato da sua planilha no Google Drive
+        sheet = client.open("ControleDeCargasLogistica") 
+        return sheet
+    except Exception as e:
+        return None
 
-if not usar_firebase:
-    if "motoristas" not in st.session_state:
-        st.session_state.motoristas = ["Carlos Silva", "João Pereira", "Maurício", "Cícero Taveira"]
-    if "ajudantes" not in st.session_state:
-        st.session_state.ajudantes = ["Pedrinho", "Lucas Souza"]
-    if "cargas" not in st.session_state:
-        st.session_state.cargas = []
+sh = conectar_google_sheets()
 
-def carregar_dados(colecao):
-    if usar_firebase and db is not None:
+# Funções de manipulação de dados via Google Sheets (com fallback para session_state em caso de falha)
+def carregar_dados(nome_aba):
+    if sh is not None:
         try:
-            docs = db.collection(colecao).stream()
-            return [doc.to_dict() for doc in docs]
-        except Exception:
-            return st.session_state.get(colecao, [])
-    else:
-        return st.session_state.get(colecao, [])
-
-def salvar_dado(colecao, dados, doc_id):
-    if usar_firebase and db is not None:
-        try:
-            db.collection(colecao).document(str(doc_id)).set(dados)
-            return
+            worksheet = sh.worksheet(nome_aba)
+            registros = worksheet.get_all_records()
+            return registros
         except Exception:
             pass
     
-    if colecao == "cargas":
-        encontrado = False
-        for i, c in enumerate(st.session_state.cargas):
-            if c.get("id") == doc_id:
-                st.session_state.cargas[i] = dados
-                encontrado = True
-                break
-        if not encontrado:
-            st.session_state.cargas.append(dados)
+    # Fallback local
+    if nome_aba not in st.session_state:
+        if nome_aba == "motoristas":
+            st.session_state.motoristas = [{"nome": "Carlos Silva"}, {"nome": "João Pereira"}, {"nome": "Maurício"}, {"nome": "Cícero Taveira"}]
+        elif nome_aba == "ajudantes":
+            st.session_state.ajudantes = [{"nome": "Pedrinho"}, {"nome": "Lucas Souza"}]
+        else:
+            st.session_state.cargas = []
+    return st.session_state.get(nome_aba, [])
 
-def adicionar_dado(colecao, dados, doc_id=None):
-    if usar_firebase and db is not None:
+def salvar_dado_sheets(nome_aba, dados_lista):
+    if sh is not None:
         try:
-            if doc_id:
-                db.collection(colecao).document(str(doc_id)).set(dados)
-            else:
-                db.collection(colecao).add(dados)
-            return
+            worksheet = sh.worksheet(nome_aba)
+            worksheet.clear()
+            if dados_lista:
+                df_temp = pd.DataFrame(dados_lista)
+                worksheet.update([df_temp.columns.values.tolist()] + df_temp.values.tolist())
+            return True
         except Exception:
             pass
-            
-    if colecao not in st.session_state:
-        st.session_state[colecao] = []
-    st.session_state[colecao].append(dados)
+    return False
 
-def excluir_dado(colecao, campo_filtro, valor):
-    if usar_firebase and db is not None:
-        try:
-            docs = db.collection(colecao).where(campo_filtro, "==", valor).stream()
-            for doc in docs:
-                doc.reference.delete()
-            return
-        except Exception:
-            pass
-            
-    if colecao == "cargas":
-        st.session_state.cargas = [c for c in st.session_state.cargas if c.get("id") != valor]
-    elif colecao == "motoristas":
-        st.session_state.motoristas = [m for m in st.session_state.motoristas if (m.get("nome") if isinstance(m, dict) else m) != valor]
-    elif colecao == "ajudantes":
-        st.session_state.ajudantes = [a for a in st.session_state.ajudantes if (a.get("nome") if isinstance(a, dict) else a) != valor]
+def adicionar_dado(nome_aba, novo_item):
+    dados = carregar_dados(nome_aba)
+    dados.append(novo_item)
+    if not salvar_dado_sheets(nome_aba, dados):
+        st.session_state[nome_aba] = dados
+
+def salvar_edicao_carga(carga_id, carga_atualizada):
+    cargas = carregar_dados("cargas")
+    for i, c in enumerate(cargas):
+        if str(c.get("id")) == str(carga_id):
+            cargas[i] = carga_atualizada
+            break
+    if not salvar_dado_sheets("cargas", cargas):
+        st.session_state.cargas = cargas
+
+def excluir_dado(nome_aba, campo_filtro, valor):
+    dados = carregar_dados(nome_aba)
+    if nome_aba == "cargas":
+        dados = [c for c in dados if str(c.get("id")) != str(valor)]
+    else:
+        dados = [item for item in dados if item.get(campo_filtro) != valor]
+        
+    if not salvar_dado_sheets(nome_aba, dados):
+        st.session_state[nome_aba] = dados
 
 def formatar_data_br(data_str):
     if not data_str:
@@ -156,9 +156,6 @@ def preparar_dataframe(cargas_lista):
     df = pd.DataFrame(cargas_lista)
     if df.empty:
         return df
-    
-    if "ajudantes" in df.columns:
-        df["ajudantes"] = df["ajudantes"].apply(lambda x: ", ".join(x) if isinstance(x, list) else str(x))
     
     for col in ["data_carga", "data_saida", "data_entrega"]:
         if col in df.columns:
@@ -258,8 +255,8 @@ def gerar_pdf(df):
 
 st.title("🚚 Painel de Controle de Cargas e Agendamentos")
 
-if not usar_firebase:
-    st.warning("⚠️ Atenção: O arquivo `serviceAccountKey.json` está corrompido ou ausente. O painel está rodando no modo local com salvamento em sessão.")
+if sh is None:
+    st.warning("⚠️ Atenção: Não foi possível conectar ao Google Sheets. Verifique o arquivo de credenciais (`serviceAccountKey.json`) ou o nome da planilha.")
 
 menu = st.radio(
     "Menu Principal",
@@ -274,9 +271,12 @@ menu = st.radio(
 
 st.markdown("---")
 
-motoristas_lista = [m.get("nome", m) if isinstance(m, dict) else m for m in carregar_dados("motoristas")]
-ajudantes_lista = [a.get("nome", a) if isinstance(a, dict) else a for a in carregar_dados("ajudantes")]
+motoristas_raw = carregar_dados("motoristas")
+ajudantes_raw = carregar_dados("ajudantes")
 cargas_lista = carregar_dados("cargas")
+
+motoristas_lista = [m.get("nome") if isinstance(m, dict) else str(m) for m in motoristas_raw if m]
+ajudantes_lista = [a.get("nome") if isinstance(a, dict) else str(a) for a in ajudantes_raw if a]
 
 # ----------------------------------------------------
 # 1. PAINEL (KANBAN)
@@ -298,7 +298,7 @@ if menu == "📋 Painel (Kanban)":
         data_str = c.get("data_saida") or c.get("data_carga")
         if data_str:
             try:
-                data_carga_obj = datetime.date.fromisoformat(data_str)
+                data_carga_obj = datetime.date.fromisoformat(str(data_str))
                 if inicio_semana_atual <= data_carga_obj <= fim_proxima_semana:
                     cargas_filtradas_periodo.append(c)
             except Exception:
@@ -359,12 +359,12 @@ if menu == "📋 Painel (Kanban)":
                     novo_status = st.selectbox(
                         "Mover Status",
                         colunas_status,
-                        index=colunas_status.index(status),
+                        index=colunas_status.index(status) if status in colunas_status else 0,
                         key=f"status_{carga_id}",
                     )
                     if novo_status != carga.get("status"):
                         carga["status"] = novo_status
-                        salvar_dado("cargas", carga, carga_id)
+                        salvar_edicao_carga(carga_id, carga)
                         st.rerun()
 
                     if st.session_state.get(f"editando_{carga_id}", False):
@@ -376,12 +376,12 @@ if menu == "📋 Painel (Kanban)":
                             novo_dest = st.text_input("Destino", value=carga.get("destino", ""))
                             
                             try:
-                                dt_saida_val = datetime.date.fromisoformat(carga.get("data_saida")) if carga.get("data_saida") else datetime.date.today()
+                                dt_saida_val = datetime.date.fromisoformat(str(carga.get("data_saida"))) if carga.get("data_saida") else datetime.date.today()
                             except:
                                 dt_saida_val = datetime.date.today()
                                 
                             try:
-                                dt_ent_val = datetime.date.fromisoformat(carga.get("data_entrega")) if carga.get("data_entrega") else datetime.date.today()
+                                dt_ent_val = datetime.date.fromisoformat(str(carga.get("data_entrega"))) if carga.get("data_entrega") else datetime.date.today()
                             except:
                                 dt_ent_val = datetime.date.today()
 
@@ -398,7 +398,7 @@ if menu == "📋 Painel (Kanban)":
                                 carga["data_saida"] = str(nova_saida)
                                 carga["data_entrega"] = str(nova_entrega)
                                 
-                                salvar_dado("cargas", carga, carga_id)
+                                salvar_edicao_carga(carga_id, carga)
                                 st.session_state[f"editando_{carga_id}"] = False
                                 st.success("Atualizado!")
                                 st.rerun()
@@ -437,19 +437,21 @@ elif menu == "➕ Nova Carga":
 
         if submit:
             if destino and motorista:
-                novo_id = max([c.get("id", 0) for c in cargas_lista], default=0) + 1
+                ids_existentes = [int(c.get("id", 0)) for c in cargas_lista if str(c.get("id", "")).isdigit()]
+                novo_id = max(ids_existentes, default=0) + 1
+                
                 nova_carga = {
                     "id": novo_id,
                     "motorista": motorista,
                     "destino": destino,
                     "observacoes": observacoes,
-                    "ajudantes": ajudantes,
+                    "ajudantes": ", ".join(ajudantes) if isinstance(ajudantes, list) else ajudantes,
                     "data_carga": str(data_carga),
                     "data_saida": str(data_saida),
                     "data_entrega": str(data_entrega),
                     "status": status_inicial,
                 }
-                adicionar_dado("cargas", nova_carga, doc_id=novo_id)
+                adicionar_dado("cargas", nova_carga)
                 st.success("Carga cadastrada com sucesso!")
                 st.rerun()
             else:
@@ -552,3 +554,4 @@ elif menu == "📊 Relatório Semanal":
                 file_name='relatorio_de_cargas.pdf',
                 mime='application/pdf',
             )
+            
