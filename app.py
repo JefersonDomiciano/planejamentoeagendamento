@@ -2,7 +2,8 @@ import datetime
 import io
 import pandas as pd
 import streamlit as st
-import requests
+import firebase_admin
+from firebase_admin import credentials, firestore
 from fpdf import FPDF
 import openpyxl
 from openpyxl.styles import Font, Alignment, PatternFill, Border, Side
@@ -55,63 +56,70 @@ st.markdown(
             font-size: 12px !important;
             color: #8b949e !important;
         }
-
-        button.btn-kanban {
-            width: 34px !important;
-            height: 34px !important;
-            min-height: 34px !important;
-            max-height: 34px !important;
-            padding: 0px !important;
-            margin: 0 auto !important;
-            background-color: #21262d !important;
-            border: 1px solid #30363d !important;
-            border-radius: 6px !important;
-            font-size: 14px !important;
-            line-height: 1 !important;
-        }
-        
-        button.btn-kanban:hover {
-            border-color: #58a6ff !important;
-            background-color: #30363d !important;
-        }
     </style>
 """,
     unsafe_allow_html=True,
 )
 
-# --- CONFIGURAÇÃO DA PLANILHA DO GOOGLE SHEETS ---
-PLANILHA_ID = "COLE_O_ID_DA_ SUA_PLANILHA_AQUI"
-url_cargas = f"https://docs.google.com/spreadsheets/d/{PLANILHA_ID}/gviz/tq?tqx=out:csv&sheet=cargas"
-url_motoristas = f"https://docs.google.com/spreadsheets/d/{PLANILHA_ID}/gviz/tq?tqx=out:csv&sheet=motoristas"
-url_ajudantes = f"https://docs.google.com/spreadsheets/d/{PLANILHA_ID}/gviz/tq?tqx=out:csv&sheet=ajudantes"
+@st.cache_resource
+def init_firebase():
+    if not firebase_admin._apps:
+        cred = credentials.Certificate("serviceAccountKey.json")
+        firebase_admin.initialize_app(cred)
+    return firestore.client()
 
-@st.cache_data(ttl=5)
+try:
+    db = init_firebase()
+    usar_firebase = True
+except Exception as e:
+    usar_firebase = False
+    if "motoristas" not in st.session_state:
+        st.session_state.motoristas = ["Carlos Silva", "João Pereira", "Maurício", "Cícero Taveira"]
+    if "ajudantes" not in st.session_state:
+        st.session_state.ajudantes = ["Pedrinho", "Lucas Souza"]
+    if "cargas" not in st.session_state:
+        st.session_state.cargas = []
+
 def carregar_dados(colecao):
-    try:
-        if colecao == "cargas":
-            df = pd.read_csv(url_cargas)
-            return df.to_dict('records')
-        elif colecao == "motoristas":
-            df = pd.read_csv(url_motoristas)
-            return df['nome'].dropna().tolist() if 'nome' in df.columns else ["Carlos Silva", "João Pereira", "Maurício", "Cícero Taveira"]
-        elif colecao == "ajudantes":
-            df = pd.read_csv(url_ajudantes)
-            return df['nome'].dropna().tolist() if 'nome' in df.columns else ["Pedrinho", "Lucas Souza"]
-    except Exception:
-        if colecao == "motoristas":
-            return ["Carlos Silva", "João Pereira", "Maurício", "Cícero Taveira"]
-        elif colecao == "ajudantes":
-            return ["Pedrinho", "Lucas Souza"]
-        return []
+    if usar_firebase:
+        docs = db.collection(colecao).stream()
+        return [doc.to_dict() for doc in docs]
+    else:
+        return st.session_state.get(colecao, [])
 
 def salvar_dado(colecao, dados, doc_id):
-    st.info("Para salvar alterações permanentemente, gerencie diretamente na sua planilha aberta no Google Sheets.")
+    if usar_firebase:
+        db.collection(colecao).document(str(doc_id)).set(dados)
+    else:
+        if colecao == "cargas":
+            encontrado = False
+            for i, c in enumerate(st.session_state.cargas):
+                if c.get("id") == doc_id:
+                    st.session_state.cargas[i] = dados
+                    encontrado = True
+                    break
+            if not encontrado:
+                st.session_state.cargas.append(dados)
 
 def adicionar_dado(colecao, dados, doc_id=None):
-    st.info("Para cadastrar novos itens permanentemente, insira as linhas diretamente na sua planilha do Google Sheets.")
+    if usar_firebase:
+        if doc_id:
+            db.collection(colecao).document(str(doc_id)).set(dados)
+        else:
+            db.collection(colecao).add(dados)
+    else:
+        st.session_state[colecao].append(dados)
 
 def excluir_dado(colecao, campo_filtro, valor):
-    st.warning("A exclusão direta está desativada no modo de planilha pública. Gerencie os dados direto no Google Sheets.")
+    if usar_firebase:
+        docs = db.collection(colecao).where(campo_filtro, "==", valor).stream()
+        for doc in docs:
+            doc.reference.delete()
+    else:
+        if colecao == "cargas":
+            st.session_state.cargas = [c for c in st.session_state.cargas if c["id"] != valor]
+        else:
+            st.session_state.motoristas = [m for m in st.session_state.motoristas if m != valor]
 
 def formatar_data_br(data_str):
     if not data_str:
@@ -227,7 +235,8 @@ def gerar_pdf(df):
 
 st.title("🚚 Painel de Controle de Cargas e Agendamentos")
 
-st.info("💡 Conectado diretamente à planilha do Google Sheets. Visualize seu Kanban completo, cadastros e relatórios abaixo!")
+if not usar_firebase:
+    st.warning("⚠️ Atenção: O arquivo de credenciais do Firebase (`serviceAccountKey.json`) não foi encontrado. Rodando em memória local.")
 
 menu = st.radio(
     "Menu Principal",
@@ -242,8 +251,8 @@ menu = st.radio(
 
 st.markdown("---")
 
-motoristas_lista = carregar_dados("motoristas")
-ajudantes_lista = carregar_dados("ajudantes")
+motoristas_lista = [m.get("nome", m) if isinstance(m, dict) else m for m in carregar_dados("motoristas")]
+ajudantes_lista = [a.get("nome", a) if isinstance(a, dict) else a for a in carregar_dados("ajudantes")]
 cargas_lista = carregar_dados("cargas")
 
 # ----------------------------------------------------
@@ -266,7 +275,7 @@ if menu == "📋 Painel (Kanban)":
         data_str = c.get("data_saida") or c.get("data_carga")
         if data_str:
             try:
-                data_carga_obj = datetime.date.fromisoformat(str(data_str))
+                data_carga_obj = datetime.date.fromisoformat(data_str)
                 if inicio_semana_atual <= data_carga_obj <= fim_proxima_semana:
                     cargas_filtradas_periodo.append(c)
             except Exception:
@@ -296,10 +305,7 @@ if menu == "📋 Painel (Kanban)":
                 unsafe_allow_html=True,
             )
 
-            cargas_status_filtradas = [c for c in cargas_filtradas_periodo if str(c.get("status", "")).strip().lower() == status.lower()]
-
-            if not cargas_status_filtradas:
-                st.caption("Nenhuma carga neste status.")
+            cargas_status_filtradas = [c for c in cargas_filtradas_periodo if c.get("status") == status]
 
             for carga in cargas_status_filtradas:
                 carga_id = carga.get('id')
@@ -311,24 +317,84 @@ if menu == "📋 Painel (Kanban)":
 
                 with st.container():
                     st.markdown(f"""
-                        <div style="border-left: 4px solid {cor_motorista}; padding-left: 8px; margin-bottom: 4px;">
+                        <div style="border-left: 4px solid {cor_motorista}; padding-left: 8px; margin-bottom: 6px;">
                             <b style="font-size: 14px; color: #ffffff;">🚚 {motorista_atual}</b><br>
                             <span style="font-size: 13px; color: #8b949e;">Destino:</span> <span style="color: #c9d1d9; font-weight: 500;">{carga.get('destino')}</span><br>
                             <span style="font-size: 12px; color: #8b949e;">📅 Saída: {saida_br} | Entrega: {entrega_br}</span>
                         </div>
                     """, unsafe_allow_html=True)
+                    
+                    c_edit, c_del = st.columns(2)
+                    with c_edit:
+                        if st.button("✏️ Editar", key=f"btn_edit_{carga_id}", use_container_width=True):
+                            st.session_state[f"editando_{carga_id}"] = not st.session_state.get(f"editando_{carga_id}", False)
+                    with c_del:
+                        if st.button("🗑️ Excluir", key=f"btn_del_{carga_id}", use_container_width=True):
+                            excluir_dado("cargas", "id", carga_id)
+                            st.rerun()
+
+                    novo_status = st.selectbox(
+                        "Mover Status",
+                        colunas_status,
+                        index=colunas_status.index(status),
+                        key=f"status_{carga_id}",
+                    )
+                    if novo_status != carga.get("status"):
+                        carga["status"] = novo_status
+                        if usar_firebase:
+                            db.collection("cargas").document(str(carga_id)).update({"status": novo_status})
+                        st.rerun()
+
+                    if st.session_state.get(f"editando_{carga_id}", False):
+                        with st.form(key=f"form_edit_{carga_id}"):
+                            st.markdown(f"**Editando Carga #{carga_id}**")
+                            
+                            mot_idx = motoristas_lista.index(carga.get("motorista")) if carga.get("motorista") in motoristas_lista else 0
+                            novo_mot = st.selectbox("Motorista", motoristas_lista if motoristas_lista else [""], index=mot_idx)
+                            novo_dest = st.text_input("Destino", value=carga.get("destino", ""))
+                            
+                            try:
+                                dt_saida_val = datetime.date.fromisoformat(carga.get("data_saida")) if carga.get("data_saida") else datetime.date.today()
+                            except:
+                                dt_saida_val = datetime.date.today()
+                                
+                            try:
+                                dt_ent_val = datetime.date.fromisoformat(carga.get("data_entrega")) if carga.get("data_entrega") else datetime.date.today()
+                            except:
+                                dt_ent_val = datetime.date.today()
+
+                            nova_saida = st.date_input("Data Saída", value=dt_saida_val, key=f"saida_{carga_id}")
+                            nova_entrega = st.date_input("Data Entrega", value=dt_ent_val, key=f"entrega_{carga_id}")
+
+                            col_f_salvar, col_f_cancelar = st.columns(2)
+                            with col_f_salvar:
+                                salvar_edicao = st.form_submit_button("💾 Salvar")
+                            
+                            if salvar_edicao:
+                                carga["motorista"] = novo_mot
+                                carga["destino"] = novo_dest
+                                carga["data_saida"] = str(nova_saida)
+                                carga["data_entrega"] = str(nova_entrega)
+                                
+                                salvar_dado("cargas", carga, carga_id)
+                                st.session_state[f"editando_{carga_id}"] = False
+                                st.success("Atualizado!")
+                                st.rerun()
 
 # ----------------------------------------------------
 # 2. NOVA CARGA
 # ----------------------------------------------------
 elif menu == "➕ Nova Carga":
     st.subheader("Cadastrar Novo Agendamento de Carga")
+
     with st.form("form_nova_carga"):
         col1, col2 = st.columns(2)
+
         with col1:
             motorista = st.selectbox("Motorista Responsável", motoristas_lista if motoristas_lista else ["Nenhum cadastrado"])
-            destino = st.text_input("Região / Cidades de Destino", placeholder="Ex: Uberaba, Araxá")
-            observacoes = st.text_area("Observações / Rota")
+            destino = st.text_input("Região / Cidades de Destino", placeholder="Ex: Uberaba, Araxá (Múltiplas entregas)")
+            observacoes = st.text_area("Observações / Rota", placeholder="Ex: Carga com entregas em lojas diferentes")
+
         with col2:
             ajudantes = st.multiselect("Ajudantes da Viagem", ajudantes_lista)
             data_carga = st.date_input("Data do Carregamento")
@@ -344,24 +410,76 @@ elif menu == "➕ Nova Carga":
                 "Entregue / Concluído",
             ],
         )
-        if st.form_submit_button("Salvar e Agendar Carga"):
-            st.success("Para registrar a nova carga, adicione a linha correspondente diretamente na sua planilha do Google Sheets!")
+
+        submit = st.form_submit_button("Salvar e Agendar Carga")
+
+        if submit:
+            if destino and motorista:
+                novo_id = max([c.get("id", 0) for c in cargas_lista], default=0) + 1
+                nova_carga = {
+                    "id": novo_id,
+                    "motorista": motorista,
+                    "destino": destino,
+                    "observacoes": observacoes,
+                    "ajudantes": ajudantes,
+                    "data_carga": str(data_carga),
+                    "data_saida": str(data_saida),
+                    "data_entrega": str(data_entrega),
+                    "status": status_inicial,
+                }
+                adicionar_dado("cargas", nova_carga, doc_id=novo_id)
+                st.success("Carga cadastrada com sucesso!")
+                st.rerun()
+            else:
+                st.error("Preencha o motorista e a região de destino.")
 
 # ----------------------------------------------------
 # 3. CADASTROS (EQUIPE)
 # ----------------------------------------------------
 elif menu == "👥 Cadastros (Equipe)":
     st.subheader("Gerenciamento de Motoristas e Ajudantes")
+
     col1, col2 = st.columns(2)
+
     with col1:
-        st.markdown("### Motoristas Atuais")
+        st.markdown("### Motoristas")
+        novo_mot = st.text_input("Adicionar novo motorista")
+        if st.button("Cadastrar Motorista"):
+            if novo_mot and novo_mot not in motoristas_lista:
+                adicionar_dado("motoristas", {"nome": novo_mot})
+                st.success(f"Motorista {novo_mot} adicionado!")
+                st.rerun()
+
+        st.markdown("---")
+        st.write("**Motoristas Atuais:**")
         for m in motoristas_lista:
-            st.text(f"👤 {m}")
+            c_mot1, c_mot2 = st.columns([4, 2])
+            c_mot1.text(m)
+            if c_mot2.button("Excluir", key=f"del_mot_{m}"):
+                if usar_firebase:
+                    docs = db.collection("motoristas").where("nome", "==", m).stream()
+                    for d in docs: d.reference.delete()
+                st.rerun()
+
     with col2:
-        st.markdown("### Ajudantes Atuais")
+        st.markdown("### Ajudantes")
+        novo_aju = st.text_input("Adicionar novo ajudante")
+        if st.button("Cadastrar Ajudante"):
+            if novo_aju and novo_aju not in ajudantes_lista:
+                adicionar_dado("ajudantes", {"nome": novo_aju})
+                st.success(f"Ajudante {novo_aju} adicionado!")
+                st.rerun()
+
+        st.markdown("---")
+        st.write("**Ajudantes Atuais:**")
         for a in ajudantes_lista:
-            st.text(f"👥 {a}")
-    st.info("Para adicionar ou remover motoristas e ajudantes, atualize as respectivas abas na sua planilha do Google Sheets.")
+            c_aju1, c_aju2 = st.columns([4, 2])
+            c_aju1.text(a)
+            if c_aju2.button("Excluir", key=f"del_aju_{a}"):
+                if usar_firebase:
+                    docs = db.collection("ajudantes").where("nome", "==", a).stream()
+                    for d in docs: d.reference.delete()
+                st.rerun()
 
 # ----------------------------------------------------
 # 4. RELATÓRIO SEMANAL DE EXECUÇÃO E EXPORTAÇÃO
@@ -370,12 +488,12 @@ elif menu == "📊 Relatório Semanal":
     st.subheader("Relatório de Execução Semanal")
 
     if not cargas_lista:
-        st.info("Nenhuma carga encontrada na planilha.")
+        st.info("Nenhuma carga cadastrada para gerar relatório.")
     else:
         df = preparar_dataframe(cargas_lista)
 
         total_cargas = len(df)
-        cargas_entregues = len(df[df["status"].str.contains("Entregue", case=False, na=False)]) if "status" in df.columns else 0
+        cargas_entregues = len(df[df["status"] == "Entregue / Concluído"]) if "status" in df.columns else 0
 
         col_m1, col_m2, col_m3 = st.columns(3)
         col_m1.metric("Total de Cargas Registradas", total_cargas)
@@ -396,7 +514,9 @@ elif menu == "📊 Relatório Semanal":
         st.dataframe(df, use_container_width=True)
 
         st.markdown("### Exportar Relatório de Cargas")
+        
         col_exp1, col_exp2 = st.columns(2)
+
         with col_exp1:
             excel_data = gerar_excel_profissional(df)
             st.download_button(
@@ -405,6 +525,7 @@ elif menu == "📊 Relatório Semanal":
                 file_name='relatorio_de_cargas.xlsx',
                 mime='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
             )
+
         with col_exp2:
             pdf_bytes = gerar_pdf(df)
             st.download_button(
