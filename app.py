@@ -9,21 +9,14 @@ import datetime
 def get_sheet():
     scope = ['https://www.googleapis.com/auth/spreadsheets', 'https://www.googleapis.com/auth/drive']
     
-    # Dicionário completo e estruturado exigido pelo Google Auth
-    creds_info = {
-        "type": "service_account",
-        "project_id": "logistica-app",
-        "private_key_id": "private_key",
-        "private_key": st.secrets["gcp_private_key"].replace("\\n", "\n"),
-        "client_email": st.secrets["gcp_service_account_email"],
-        "client_id": "123456789",
-        "auth_uri": "https://accounts.google.com/o/oauth2/auth",
-        "token_uri": "https://oauth2.googleapis.com/token",
-        "auth_provider_x509_cert_url": "https://www.googleapis.com/oauth2/v1/certs",
-        "client_x509_cert_url": "https://www.googleapis.com/robot/v1/metadata/x509/" + st.secrets["gcp_service_account_email"].replace("@", "%40")
-    }
+    # Lê o bloco [gcp] inteiro direto dos secrets do Streamlit
+    creds_dict = dict(st.secrets["gcp"])
     
-    creds = Credentials.from_service_account_info(creds_info, scopes=scope)
+    # Garante que as quebras de linha da chave privada sejam interpretadas corretamente
+    if "private_key" in creds_dict:
+        creds_dict["private_key"] = creds_dict["private_key"].replace("\\n", "\n")
+
+    creds = Credentials.from_service_account_info(creds_dict, scopes=scope)
     client = gspread.authorize(creds)
     return client.open("Banco_Logistica").sheet1
 
