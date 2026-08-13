@@ -56,19 +56,6 @@ st.markdown(
             font-size: 12px !important;
             color: #8b949e !important;
         }
-
-        div[data-testid="stHorizontalBlock"] button {
-            background-color: transparent !important;
-            border: none !important;
-            box-shadow: none !important;
-            font-size: 16px !important;
-            padding: 0px !important;
-            min-height: unset !important;
-        }
-        div[data-testid="stHorizontalBlock"] button:hover {
-            background-color: rgba(255, 255, 255, 0.05) !important;
-            border: none !important;
-        }
     </style>
 """,
     unsafe_allow_html=True,
@@ -100,7 +87,8 @@ def carregar_dados(colecao):
         try:
             docs = db.collection(colecao).stream()
             return [doc.to_dict() for doc in docs]
-        except Exception:
+        except Exception as e:
+            st.error(f"Erro ao carregar {colecao} do Firebase: {e}")
             return []
     else:
         return st.session_state.get(colecao, [])
@@ -201,21 +189,14 @@ def gerar_excel_profissional(df):
             else:
                 cell.alignment = left_alignment
 
-    for col in ws.columns:
-        max_len = max(len(str(cell.value or '')) for cell in col)
-        col_letter = get_column_letter(col[0].column)
-        ws.column_dimensions[col_letter].width = max(max_len + 5, 15)
-
     wb.save(output)
     return output.getvalue()
 
 def gerar_pdf(df):
     pdf = FPDF(orientation='P', unit='mm', format='A4')
     pdf.add_page()
-    
     pdf.set_font("Arial", "B", 14)
     pdf.cell(190, 8, txt="Relatório de Cargas", ln=True, align="C")
-    
     pdf.set_font("Arial", "", 9)
     pdf.cell(190, 5, txt=f"Data de geração: {datetime.date.today().strftime('%d/%m/%Y')}", ln=True, align="C")
     pdf.ln(4)
@@ -249,20 +230,7 @@ def gerar_pdf(df):
 st.title("🚚 Painel de Controle de Cargas e Agendamentos")
 
 if not usar_firebase:
-    st.warning("⚠️ Atenção: O arquivo de credenciais do Firebase (`serviceAccountKey.json`) não foi encontrado ou falhou. Rodando em memória local.")
-
-menu = st.radio(
-    "Menu Principal",
-    [
-        "📋 Painel (Kanban)",
-        "➕ Nova Carga",
-        "👥 Cadastros (Equipe)",
-        "📊 Relatório Semanal",
-    ],
-    horizontal=True,
-)
-
-st.markdown("---")
+    st.warning("⚠️ Atenção: O arquivo de credenciais do Firebase não foi encontrado. Rodando em memória local.")
 
 motoristas_raw = carregar_dados("motoristas")
 ajudantes_raw = carregar_dados("ajudantes")
@@ -271,16 +239,24 @@ motoristas_lista = [m.get("nome", m) if isinstance(m, dict) else m for m in moto
 ajudantes_lista = [a.get("nome", a) if isinstance(a, dict) else a for a in ajudantes_raw if a]
 cargas_lista = carregar_dados("cargas")
 
+# Utilizando abas nativas para evitar qualquer travamento de renderização de estado
+tab1, tab2, tab3, tab4 = st.tabs([
+    "📋 Painel (Kanban)", 
+    "➕ Nova Carga", 
+    "👥 Cadastros (Equipe)", 
+    "📊 Relatório Semanal"
+])
+
 # ----------------------------------------------------
 # 1. PAINEL (KANBAN)
 # ----------------------------------------------------
-if menu == "📋 Painel (Kanban)":
+with tab1:
     st.subheader("Visão Geral das Cargas Ativas")
 
     col_f1, col_f2 = st.columns([2, 2])
     with col_f1:
         motoristas_filtro_opcoes = ["Todos os Motoristas"] + motoristas_lista
-        motorista_selecionado = st.selectbox("Filtrar por Motorista", motoristas_filtro_opcoes)
+        motorista_selecionado = st.selectbox("Filtrar por Motorista", motoristas_filtro_opcoes, key="filtro_kanban_mot")
 
     cargas_filtradas_periodo = [c for c in cargas_lista if c.get("status") != "Entregue / Concluído"]
 
@@ -301,10 +277,7 @@ if menu == "📋 Painel (Kanban)":
 
     for idx, status in enumerate(colunas_status):
         with cols[idx]:
-            st.markdown(
-                f"<div class='kanban-header'>{status}</div>",
-                unsafe_allow_html=True,
-            )
+            st.markdown(f"<div class='kanban-header'>{status}</div>", unsafe_allow_html=True)
 
             cargas_status_filtradas = [c for c in cargas_filtradas_periodo if c.get("status") == status]
 
@@ -352,11 +325,7 @@ if menu == "📋 Painel (Kanban)":
                     )
                     if novo_status != carga.get("status"):
                         carga["status"] = novo_status
-                        if usar_firebase:
-                            try:
-                                db.collection("cargas").document(str(carga_id)).update({"status": novo_status})
-                            except:
-                                pass
+                        salvar_dado("cargas", carga, carga_id)
                         st.rerun()
 
                     if st.session_state.get(f"editando_{carga_id}", False):
@@ -380,16 +349,11 @@ if menu == "📋 Painel (Kanban)":
                             nova_saida = st.date_input("Data Saída", value=dt_saida_val, key=f"saida_{carga_id}")
                             nova_entrega = st.date_input("Data Entrega", value=dt_ent_val, key=f"entrega_{carga_id}")
 
-                            col_f_salvar, col_f_cancelar = st.columns(2)
-                            with col_f_salvar:
-                                salvar_edicao = st.form_submit_button("💾 Salvar")
-                            
-                            if salvar_edicao:
+                            if st.form_submit_button("💾 Salvar Edição"):
                                 carga["motorista"] = novo_mot
                                 carga["destino"] = novo_dest
                                 carga["data_saida"] = str(nova_saida)
                                 carga["data_entrega"] = str(nova_entrega)
-                                
                                 salvar_dado("cargas", carga, carga_id)
                                 st.session_state[f"editando_{carga_id}"] = False
                                 st.success("Atualizado!")
@@ -398,7 +362,7 @@ if menu == "📋 Painel (Kanban)":
 # ----------------------------------------------------
 # 2. NOVA CARGA
 # ----------------------------------------------------
-elif menu == "➕ Nova Carga":
+with tab2:
     st.subheader("Cadastrar Novo Agendamento de Carga")
 
     with st.form("form_nova_carga"):
@@ -406,7 +370,7 @@ elif menu == "➕ Nova Carga":
 
         with col1:
             if motoristas_lista:
-                motorista = st.selectbox("Motorista Responsável", motoristas_lista)
+                motorista = st.selectbox("Motorista Responsável", motoristas_lista, key="nova_mot_sel")
             else:
                 motorista = st.text_input("Motorista Responsável (Digite o nome)", placeholder="Ex: Carlos Silva")
 
@@ -415,9 +379,9 @@ elif menu == "➕ Nova Carga":
 
         with col2:
             ajudantes = st.multiselect("Ajudantes da Viagem", ajudantes_lista)
-            data_carga = st.date_input("Data do Carregamento")
-            data_saida = st.date_input("Data Saída")
-            data_entrega = st.date_input("Data Prevista de Entrega")
+            data_carga = st.date_input("Data do Carregamento", key="nova_data_carg")
+            data_saida = st.date_input("Data Saída", key="nova_data_said")
+            data_entrega = st.date_input("Data Prevista de Entrega", key="nova_data_entr")
 
         status_inicial = st.selectbox(
             "Status Inicial",
@@ -427,6 +391,7 @@ elif menu == "➕ Nova Carga":
                 "Em Trânsito / Viagem Iniciada",
                 "Entregue / Concluído",
             ],
+            key="nova_status_inic"
         )
 
         submit = st.form_submit_button("Salvar e Agendar Carga")
@@ -465,7 +430,7 @@ elif menu == "➕ Nova Carga":
 # ----------------------------------------------------
 # 3. CADASTROS (EQUIPE)
 # ----------------------------------------------------
-elif menu == "👥 Cadastros (Equipe)":
+with tab3:
     st.subheader("Gerenciamento de Motoristas e Ajudantes")
 
     col1, col2 = st.columns(2)
@@ -521,9 +486,9 @@ elif menu == "👥 Cadastros (Equipe)":
                 st.rerun()
 
 # ----------------------------------------------------
-# 4. RELATÓRIO COM FILTROS DE MÊS E MOTORISTA
+# 4. RELATÓRIO
 # ----------------------------------------------------
-elif menu == "📊 Relatório Semanal":
+with tab4:
     st.subheader("Relatório de Execução e Histórico de Cargas")
 
     if not cargas_lista:
@@ -534,11 +499,11 @@ elif menu == "📊 Relatório Semanal":
 
         with col_f1:
             meses_opcoes = ["Todos os Meses", "01 - Janeiro", "02 - Fevereiro", "03 - Março", "04 - Abril", "05 - Maio", "06 - Junho", "07 - Julho", "08 - Agosto", "09 - Setembro", "10 - Outubro", "11 - Novembro", "12 - Dezembro"]
-            mes_selecionado = st.selectbox("Filtrar por Mês (Data de Saída)", meses_opcoes)
+            mes_selecionado = st.selectbox("Filtrar por Mês (Data de Saída)", meses_opcoes, key="filtro_mes_rel")
 
         with col_f2:
             mot_rel_opcoes = ["Todos os Motoristas"] + motoristas_lista
-            motorista_rel_selecionado = st.selectbox("Filtrar por Motorista", mot_rel_opcoes)
+            motorista_rel_selecionado = st.selectbox("Filtrar por Motorista", mot_rel_opcoes, key="filtro_mot_rel")
 
         cargas_filtradas_rel = cargas_lista
 
