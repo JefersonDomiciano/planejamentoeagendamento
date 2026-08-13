@@ -1,5 +1,4 @@
 import datetime
-import io
 import pandas as pd
 import streamlit as st
 import firebase_admin
@@ -59,69 +58,55 @@ st.markdown(
 
 st.title("🚚 Painel de Controle de Cargas e Agendamentos")
 
+# Inicialização segura do Firebase com tratamento isolado
 @st.cache_resource
-def init_firebase():
+def conectar_firebase():
     try:
         if not firebase_admin._apps:
             cred = credentials.Certificate("serviceAccountKey.json")
             firebase_admin.initialize_app(cred)
         return firestore.client()
-    except Exception:
+    except Exception as e:
         return None
 
-db = init_firebase()
+db = conectar_firebase()
 
 if db is None:
-    st.error("❌ Falha na inicialização do Firebase. Verifique o arquivo 'serviceAccountKey.json'.")
+    st.error("⚠️ Erro crítico: Não foi possível autenticar no Firebase. Verifique o arquivo 'serviceAccountKey.json'.")
 
-def carregar_dados(colecao):
+# Funções de banco de dados protegidas
+def carregar_dados_seguro(colecao):
     if db is None:
         return []
     try:
-        # Usa list() com os docs para forçar a leitura rápida sem travar a thread
-        docs = list(db.collection(colecao).get())
+        docs = db.collection(colecao).stream()
         return [doc.to_dict() for doc in docs]
-    except Exception as e:
-        st.warning(f"Aviso ao carregar {colecao}: {e}")
+    except Exception:
         return []
 
-def salvar_dado(colecao, dados, doc_id):
-    if db is None: return
+def salvar_dado_seguro(colecao, dados, doc_id):
+    if db is None:
+        return
     try:
         db.collection(colecao).document(str(doc_id)).set(dados)
     except Exception as e:
         st.error(f"Erro ao salvar: {e}")
 
-def adicionar_dado(colecao, dados, doc_id=None):
-    if db is None: return
-    try:
-        if doc_id:
-            db.collection(colecao).document(str(doc_id)).set(dados)
-        else:
-            db.collection(colecao).add(dados)
-    except Exception as e:
-        st.error(f"Erro ao adicionar: {e}")
-
-def formatar_data_br(data_str):
-    if not data_str: return ""
-    try: return datetime.date.fromisoformat(str(data_str)).strftime('%d/%m/%Y')
-    except: return str(data_str)
-
-# Carregamento seguro direto (sem spinner travado)
-motoristas_raw = carregar_dados("motoristas")
-ajudantes_raw = carregar_dados("ajudantes")
-cargas_lista = carregar_dados("cargas")
+# Carregamento das listas
+motoristas_raw = carregar_dados_seguro("motoristas")
+ajudantes_raw = carregar_dados_seguro("ajudantes")
+cargas_lista = carregar_dados_seguro("cargas")
 
 motoristas_lista = [m.get("nome", "") for m in motoristas_raw]
 ajudantes_lista = [a.get("nome", "") for a in ajudantes_raw]
 
-# Criação das Abas
+# Criação das Abas do Painel
 tab1, tab2, tab3, tab4 = st.tabs(["📋 Painel (Kanban)", "➕ Nova Carga", "👥 Cadastros (Equipe)", "📊 Relatório Semanal"])
 
 with tab1:
     st.subheader("Visão Geral das Cargas")
     if not cargas_lista:
-        st.info("Nenhuma carga encontrada no Firebase. Utilize a aba 'Nova Carga' para cadastrar.")
+        st.info("Nenhuma carga encontrada no banco de dados. Utilize a aba 'Nova Carga' para cadastrar.")
     else:
         col_k1, col_k2, col_k3, col_k4 = st.columns(4)
         
@@ -146,7 +131,7 @@ with tab1:
                     st.markdown(f"**ID:** {carga.get('id', 'N/A')}")
                     st.markdown(f"**Motorista:** {carga.get('motorista', 'Não informado')}")
                     st.markdown(f"**Destino:** {carga.get('destino', 'Não informado')}")
-                    st.markdown(f"**Saída:** {formatar_data_br(carga.get('data_saida', ''))}")
+                    st.markdown(f"**Saída:** {carga.get('data_saida', '')}")
                     
                     novo_status = st.selectbox(
                         "Status", 
@@ -157,7 +142,7 @@ with tab1:
                     
                     if novo_status != status_atual:
                         carga["status"] = novo_status
-                        salvar_dado("cargas", carga, carga.get("id"))
+                        salvar_dado_seguro("cargas", carga, carga.get("id"))
                         st.rerun()
 
 with tab2:
@@ -187,8 +172,8 @@ with tab2:
                     "data_entrega": str(data_entrega),
                     "status": "Pendente"
                 }
-                adicionar_dado("cargas", dados_carga, carga_id)
-                st.success(f"Carga {carga_id} salva no Firebase com sucesso!")
+                salvar_dado_seguro("cargas", dados_carga, carga_id)
+                st.success(f"Carga {carga_id} salva com sucesso!")
                 st.rerun()
 
 with tab3:
@@ -201,7 +186,7 @@ with tab3:
             nome_mot = st.text_input("Nome do Motorista")
             if st.form_submit_button("Adicionar Motorista"):
                 if nome_mot:
-                    adicionar_dado("motoristas", {"nome": nome_mot}, nome_mot)
+                    salvar_dado_seguro("motoristas", {"nome": nome_mot}, nome_mot)
                     st.success(f"Motorista {nome_mot} adicionado!")
                     st.rerun()
         
@@ -215,7 +200,7 @@ with tab3:
             nome_aju = st.text_input("Nome do Ajudante")
             if st.form_submit_button("Adicionar Ajudante"):
                 if nome_aju:
-                    adicionar_dado("ajudantes", {"nome": nome_aju}, nome_aju)
+                    salvar_dado_seguro("ajudantes", {"nome": nome_aju}, nome_aju)
                     st.success(f"Ajudante {nome_aju} adicionado!")
                     st.rerun()
                     
@@ -226,7 +211,7 @@ with tab3:
 with tab4:
     st.subheader("Relatório Semanal e Exportação")
     if not cargas_lista:
-        st.info("Sem dados no Firebase para gerar relatório.")
+        st.info("Sem dados para gerar relatório.")
     else:
         df_relatorio = pd.DataFrame(cargas_lista)
         st.dataframe(df_relatorio, use_container_width=True)
