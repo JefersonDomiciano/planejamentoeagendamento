@@ -66,30 +66,34 @@ def init_firebase():
             cred = credentials.Certificate("serviceAccountKey.json")
             firebase_admin.initialize_app(cred)
         return firestore.client()
-    except Exception as e:
+    except Exception:
         return None
 
 db = init_firebase()
 
 if db is None:
-    st.error("❌ Falha crítica na conexão com o Firebase. Verifique se o arquivo 'serviceAccountKey.json' está correto no repositório.")
-    st.stop()
+    st.error("❌ Falha na inicialização do Firebase. Verifique o arquivo 'serviceAccountKey.json'.")
 
 def carregar_dados(colecao):
+    if db is None:
+        return []
     try:
-        docs = db.collection(colecao).stream()
+        # Usa list() com os docs para forçar a leitura rápida sem travar a thread
+        docs = list(db.collection(colecao).get())
         return [doc.to_dict() for doc in docs]
     except Exception as e:
-        st.warning(f"Erro ao carregar '{colecao}': {e}")
+        st.warning(f"Aviso ao carregar {colecao}: {e}")
         return []
 
 def salvar_dado(colecao, dados, doc_id):
+    if db is None: return
     try:
         db.collection(colecao).document(str(doc_id)).set(dados)
     except Exception as e:
         st.error(f"Erro ao salvar: {e}")
 
 def adicionar_dado(colecao, dados, doc_id=None):
+    if db is None: return
     try:
         if doc_id:
             db.collection(colecao).document(str(doc_id)).set(dados)
@@ -103,10 +107,10 @@ def formatar_data_br(data_str):
     try: return datetime.date.fromisoformat(str(data_str)).strftime('%d/%m/%Y')
     except: return str(data_str)
 
-with st.spinner("Carregando dados do Firebase..."):
-    motoristas_raw = carregar_dados("motoristas")
-    ajudantes_raw = carregar_dados("ajudantes")
-    cargas_lista = carregar_dados("cargas")
+# Carregamento seguro direto (sem spinner travado)
+motoristas_raw = carregar_dados("motoristas")
+ajudantes_raw = carregar_dados("ajudantes")
+cargas_lista = carregar_dados("cargas")
 
 motoristas_lista = [m.get("nome", "") for m in motoristas_raw]
 ajudantes_lista = [a.get("nome", "") for a in ajudantes_raw]
@@ -117,7 +121,7 @@ tab1, tab2, tab3, tab4 = st.tabs(["📋 Painel (Kanban)", "➕ Nova Carga", "�
 with tab1:
     st.subheader("Visão Geral das Cargas")
     if not cargas_lista:
-        st.info("Nenhuma carga cadastrada no Firebase. Utilize a aba 'Nova Carga' para começar.")
+        st.info("Nenhuma carga encontrada no Firebase. Utilize a aba 'Nova Carga' para cadastrar.")
     else:
         col_k1, col_k2, col_k3, col_k4 = st.columns(4)
         
