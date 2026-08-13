@@ -1,13 +1,13 @@
 import datetime
 import io
-import os
 import pandas as pd
 import streamlit as st
 from fpdf import FPDF
 import openpyxl
 from openpyxl.styles import Font, Alignment, PatternFill, Border, Side
 from openpyxl.utils import get_column_letter
-import gspread
+import firebase_admin
+from firebase_admin import credentials, firestore
 
 st.set_page_config(
     page_title="Gestão de Cargas - Logística",
@@ -61,76 +61,85 @@ st.markdown(
     unsafe_allow_html=True,
 )
 
+# Inicialização do Firebase Firestore
 @st.cache_resource
-def conectar_google_sheets():
+def conectar_firebase():
     try:
-        if "gcp_service_account" in st.secrets:
-            creds_dict = dict(st.secrets["gcp_service_account"])
-            if "private_key" in creds_dict:
-                creds_dict["private_key"] = creds_dict["private_key"].replace("\\n", "\n")
-            client = gspread.service_account_from_dict(creds_dict)
-            sheet = client.open("ControleDeCargasLogistica") 
-            return sheet
-    except Exception:
-        pass
-    return None
+        if not firebase_admin._apps:
+            if "firebase" in st.secrets:
+                cred_dict = dict(st.secrets["firebase"])
+                if "private_key" in cred_dict:
+                    cred_dict["private_key"] = cred_dict["private_key"].replace("\\n", "\n")
+                cred = credentials.Certificate(cred_dict)
+                firebase_admin.initialize_app(cred)
+        return firestore.client()
+    except Exception as e:
+        st.error(f"Erro ao conectar no Firebase: {e}")
+        return None
 
-sh = conectar_google_sheets()
+db = conectar_firebase()
 
-def carregar_dados(nome_aba):
-    if sh is not None:
+# Funções de Banco de Dados (Firebase)
+def carregar_dados(colecao):
+    if db is not None:
         try:
-            worksheet = sh.worksheet(nome_aba)
-            registros = worksheet.get_all_records()
-            if registros:
-                return registros
+            docs = db.collection(colecao).stream()
+            lista = [doc.to_dict() for doc in docs]
+            if lista:
+                return lista
         except Exception:
             pass
     
-    if nome_aba not in st.session_state:
-        if nome_aba == "motoristas":
+    # Fallback local se o Firebase falhar temporariamente
+    if colecao not in st.session_state:
+        if colecao == "motoristas":
             st.session_state.motoristas = [{"nome": "Carlos Silva"}, {"nome": "João Pereira"}, {"nome": "Maurício"}, {"nome": "Cícero Taveira"}]
-        elif nome_aba == "ajudantes":
+        elif colecao == "ajudantes":
             st.session_state.ajudantes = [{"nome": "Pedrinho"}, {"nome": "Lucas Souza"}]
         else:
             st.session_state.cargas = []
-    return st.session_state.get(nome_aba, [])
+    return st.session_state.get(colecao, [])
 
-def salvar_dado_sheets(nome_aba, dados_lista):
-    sucesso_sheets = False
-    if sh is not None:
+def salvar_item_firebase(colecao, doc_id, dados):
+    if db is not None:
         try:
-            worksheet = sh.worksheet(nome_aba)
-            worksheet.clear()
-            if dados_lista:
-                df_temp = pd.DataFrame(dados_lista)
-                worksheet.update([df_temp.columns.values.tolist()] + df_temp.values.tolist())
-            sucesso_sheets = True
+            db.collection(colecao).document(str(doc_id)).set(dados)
+            return True
         except Exception:
-            pass
-    st.session_state[nome_aba] = dados_lista
-    return sucesso_sheets
+            return False
+    return False
 
-def adicionar_dado(nome_aba, novo_item):
-    dados = carregar_dados(nome_aba)
-    dados.append(novo_item)
-    salvar_dado_sheets(nome_aba, dados)
+def excluir_item_firebase(colecao, doc_id):
+    if db is not None:
+        try:
+            db.collection(colecao).document(str(doc_id)).delete()
+            return True
+        except Exception:
+            return False
+    return False
+
+def adicionar_dado(colecao, novo_item, campo_id="id"):
+    # Se for motorista/ajudante, usamos o próprio nome como ID para evitar duplicatas
+    if colecao in ["motoristas", "ajudantes"]:
+        doc_id = novo_item.get("nome")
+        novo_item["id"] = doc_id
+    else:
+        doc_id = novo_item.get(campo_id)
+        
+    salvar_item_firebase(colecao, doc_id, novo_item)
+
+def excluir_dado(colecao, campo_filtro, valor):
+    if colecao == "cargas":
+        cargas = carregar_dados("cargas")
+        for c in cargas:
+            if str(c.get("id")) == str(valor):
+                excluir_item_firebase("cargas", valor)
+                break
+    else:
+        excluir_item_firebase(colecao, valor)
 
 def salvar_edicao_carga(carga_id, carga_atualizada):
-    cargas = carregar_dados("cargas")
-    for i, c in enumerate(cargas):
-        if str(c.get("id")) == str(carga_id):
-            cargas[i] = carga_atualizada
-            break
-    salvar_dado_sheets("cargas", cargas)
-
-def excluir_dado(nome_aba, campo_filtro, valor):
-    dados = carregar_dados(nome_aba)
-    if nome_aba == "cargas":
-        dados = [c for c in dados if str(c.get("id")) != str(valor)]
-    else:
-        dados = [item for item in dados if item.get(campo_filtro) != valor]
-    salvar_dado_sheets(nome_aba, dados)
+    salvar_item_firebase("cargas", carga_id, carga_atualizada)
 
 def formatar_data_br(data_str):
     if not data_str:
@@ -241,10 +250,10 @@ def gerar_pdf(df):
 
     return pdf.output(dest='S').encode('latin1')
 
-st.title("🚚 Painel de Controle de Cargas e Agendamentos")
+st.title("🚚 Painel de Controle de Cargas e Agendamentos (Firebase)")
 
-if sh is None:
-    st.info("💡 Rodando no modo de armazenamento interno (memória da sessão). Se desejar conectar ao Google Sheets posteriormente, certifique-se de configurar os Secrets com a chave privada correta.")
+if db is None:
+    st.warning("⚠️ Atenção: O Firebase não está conectado. Verifique suas credenciais nos Secrets.")
 
 menu = st.radio(
     "Menu Principal",
@@ -396,7 +405,7 @@ elif menu == "➕ Nova Carga":
 
         with col1:
             motorista = st.selectbox("Motorista Responsável", motoristas_lista if motoristas_lista else ["Nenhum cadastrado"])
-            destino = st.text_input("Região / Cidades de Destino", placeholder="Ex: Uberaba, Araxá (Múltiplas entregas)")
+            destino = st.text_input("Região / Cidades de Destino", placeholder="Ex: Uberaba, Araxá")
             observacoes = st.text_area("Observações / Rota", placeholder="Ex: Carga com entregas em lojas diferentes")
 
         with col2:
@@ -433,8 +442,8 @@ elif menu == "➕ Nova Carga":
                     "data_entrega": str(data_entrega),
                     "status": status_inicial,
                 }
-                adicionar_dado("cargas", nova_carga)
-                st.success("Carga cadastrada com sucesso!")
+                adicionar_dado("cargas", nova_carga, campo_id="id")
+                st.success("Carga cadastrada no Firebase com sucesso!")
                 st.rerun()
             else:
                 st.error("Preencha o motorista e a região de destino.")
