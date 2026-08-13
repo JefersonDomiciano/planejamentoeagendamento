@@ -57,25 +57,6 @@ st.markdown(
             font-size: 12px !important;
             color: #8b949e !important;
         }
-
-        button.btn-kanban {
-            width: 34px !important;
-            height: 34px !important;
-            min-height: 34px !important;
-            max-height: 34px !important;
-            padding: 0px !important;
-            margin: 0 auto !important;
-            background-color: #21262d !important;
-            border: 1px solid #30363d !important;
-            border-radius: 6px !important;
-            font-size: 14px !important;
-            line-height: 1 !important;
-        }
-        
-        button.btn-kanban:hover {
-            border-color: #58a6ff !important;
-            background-color: #30363d !important;
-        }
     </style>
 """,
     unsafe_allow_html=True,
@@ -86,10 +67,10 @@ st.title("🚚 Painel de Controle de Cargas e Agendamentos")
 FIREBASE_PROJECT_ID = "logistica-d6c14"
 
 def formatar_data_br(data_str):
-    if not data_str or str(data_str).lower() == "nan" or str(data_str).lower() == "none":
+    if not data_str or str(data_str).lower() in ["nan", "none", ""]:
         return ""
     try:
-        dt = datetime.datetime.strptime(str(data_str), "%Y-%m-%d")
+        dt = datetime.datetime.strptime(str(data_str).split("T")[0], "%Y-%m-%d")
         return dt.strftime("%d/%m/%Y")
     except Exception:
         return str(data_str)
@@ -159,7 +140,7 @@ menu = st.radio(
         "📋 Painel (Kanban)",
         "➕ Nova Carga",
         "👥 Cadastros (Equipe)",
-        "📊 Relatório Semanal",
+        "📊 Dashboard e Relatório",
     ],
     horizontal=True,
 )
@@ -234,7 +215,7 @@ def gerar_excel_profissional(df):
     return output.getvalue()
 
 def gerar_pdf(df):
-    pdf = FPDF(orientation='L', unit='mm', format='A4') # Paisagem para caber perfeitamente
+    pdf = FPDF(orientation='L', unit='mm', format='A4')
     pdf.add_page()
     
     pdf.set_font("Arial", "B", 14)
@@ -263,9 +244,9 @@ def gerar_pdf(df):
         pdf.cell(larguras[1], 6, str(row.get("motorista", ""))[:22], 1, 0, "L")
         pdf.cell(larguras[2], 6, str(row.get("destino", ""))[:30], 1, 0, "L")
         pdf.cell(larguras[3], 6, str(row.get("ajudantes", ""))[:25], 1, 0, "L")
-        pdf.cell(larguras[4], 6, formatar_data_br(row.get("data_carga", "")), 1, 0, "C")
-        pdf.cell(larguras[5], 6, formatar_data_br(row.get("data_saida", "")), 1, 0, "C")
-        pdf.cell(larguras[6], 6, formatar_data_br(row.get("data_entrega", "")), 1, 0, "C")
+        pdf.cell(larguras[4], 6, str(row.get("data_carga", "")), 1, 0, "C")
+        pdf.cell(larguras[5], 6, str(row.get("data_saida", "")), 1, 0, "C")
+        pdf.cell(larguras[6], 6, str(row.get("data_entrega", "")), 1, 0, "C")
         pdf.cell(larguras[7], 6, str(row.get("status", ""))[:18], 1, 0, "C")
         pdf.ln()
 
@@ -277,26 +258,29 @@ def gerar_pdf(df):
 if menu == "📋 Painel (Kanban)":
     st.subheader("Visão Geral das Cargas")
 
-    col_f1, _ = st.columns([2, 2])
+    col_f1, col_f2, col_f3 = st.columns([2, 1.5, 1.5])
     with col_f1:
         motoristas_filtro_opcoes = ["Todos os Motoristas"] + motoristas_lista
         motorista_selecionado = st.selectbox("Filtrar por Motorista", motoristas_filtro_opcoes)
-
-    hoje = datetime.date.today()
-    inicio_semana_atual = hoje - datetime.timedelta(days=hoje.weekday())
-    fim_proxima_semana = inicio_semana_atual + datetime.timedelta(days=13)
+    
+    with col_f2:
+        data_inicial_filtro = st.date_input("Data Inicial (Saída)", value=datetime.date.today() - datetime.timedelta(days=7))
+    with col_f3:
+        data_final_filtro = st.date_input("Data Final (Saída)", value=datetime.date.today() + datetime.timedelta(days=30))
 
     cargas_filtradas_periodo = []
     for c in cargas_lista:
         data_str = c.get("data_saida") or c.get("data_carga")
+        incluir = True
         if data_str:
             try:
-                data_carga_obj = datetime.date.fromisoformat(data_str)
-                if inicio_semana_atual <= data_carga_obj <= fim_proxima_semana:
-                    cargas_filtradas_periodo.append(c)
+                dt_obj = datetime.date.fromisoformat(str(data_str).split("T")[0])
+                if not (data_inicial_filtro <= dt_obj <= data_final_filtro):
+                    incluir = False
             except Exception:
-                cargas_filtradas_periodo.append(c)
-        else:
+                pass
+        
+        if incluir:
             cargas_filtradas_periodo.append(c)
 
     if motorista_selecionado != "Todos os Motoristas":
@@ -332,7 +316,7 @@ if menu == "📋 Painel (Kanban)":
                 entrega_br = formatar_data_br(carga.get('data_entrega'))
 
                 with st.container():
-                    c_info, c_edit, c_del = st.columns([5, 1, 1])
+                    c_info, c_btn = st.columns([5, 2])
                     
                     with c_info:
                         st.markdown(f"""
@@ -344,17 +328,16 @@ if menu == "📋 Painel (Kanban)":
                             </div>
                         """, unsafe_allow_html=True)
                     
-                    with c_edit:
-                        if st.button("✏️", key=f"btn_edit_{carga_id}"):
-                            st.session_state[f"editando_{carga_id}"] = not st.session_state.get(f"editando_{carga_id}", False)
-                        st.markdown('<script>parent.document.querySelectorAll(\'button[key*="btn_edit"]\').forEach(el => el.classList.add("btn-kanban"));</script>', unsafe_allow_html=True)
-                    
-                    with c_del:
-                        if st.button("🗑️", key=f"btn_del_{carga_id}"):
-                            deletar_documento("cargas", carga_id)
-                            st.session_state["cargas"] = [c for c in cargas_lista if c.get("id") != carga_id]
-                            st.rerun()
-                        st.markdown('<script>parent.document.querySelectorAll(\'button[key*="btn_del"]\').forEach(el => el.classList.add("btn-kanban"));</script>', unsafe_allow_html=True)
+                    with c_btn:
+                        col_e, col_d = st.columns(2)
+                        with col_e:
+                            if st.button("✏️", key=f"btn_edit_{carga_id}", help="Editar Carga"):
+                                st.session_state[f"editando_{carga_id}"] = not st.session_state.get(f"editando_{carga_id}", False)
+                        with col_d:
+                            if st.button("🗑️", key=f"btn_del_{carga_id}", help="Excluir Carga"):
+                                deletar_documento("cargas", carga_id)
+                                st.session_state["cargas"] = [c for c in cargas_lista if c.get("id") != carga_id]
+                                st.rerun()
 
                     novo_status = st.selectbox(
                         "Mover Status",
@@ -362,8 +345,13 @@ if menu == "📋 Painel (Kanban)":
                         index=colunas_status.index(status) if status in colunas_status else 0,
                         key=f"status_{carga_id}",
                     )
+                    
                     if novo_status != carga.get("status"):
                         carga["status"] = novo_status
+                        # Se mudar para Entregue e data de entrega estiver vazia, preencher automaticamente com hoje
+                        if novo_status == "Entregue / Concluído" and not carga.get("data_entrega"):
+                            carga["data_entrega"] = str(datetime.date.today())
+                        
                         salvar_documento("cargas", carga_id, carga)
                         st.rerun()
 
@@ -376,12 +364,12 @@ if menu == "📋 Painel (Kanban)":
                             novo_dest = st.text_input("Destino", value=carga.get("destino", ""))
                             
                             try:
-                                dt_saida_val = datetime.date.fromisoformat(carga.get("data_saida")) if carga.get("data_saida") else datetime.date.today()
+                                dt_saida_val = datetime.date.fromisoformat(str(carga.get("data_saida")).split("T")[0]) if carga.get("data_saida") else datetime.date.today()
                             except:
                                 dt_saida_val = datetime.date.today()
                                 
                             try:
-                                dt_ent_val = datetime.date.fromisoformat(carga.get("data_entrega")) if carga.get("data_entrega") else datetime.date.today()
+                                dt_ent_val = datetime.date.fromisoformat(str(carga.get("data_entrega")).split("T")[0]) if carga.get("data_entrega") else datetime.date.today()
                             except:
                                 dt_ent_val = datetime.date.today()
 
@@ -441,11 +429,14 @@ elif menu == "➕ Nova Carga":
 
         if submit:
             if id_planejamento and destino and motorista:
-                # Verificar se ID já existe
                 ids_existentes = [str(c.get("id")) for c in cargas_lista]
                 if str(id_planejamento) in ids_existentes:
                     st.error(f"Já existe uma carga cadastrada com o ID/Planejamento '{id_planejamento}'. Use outro número.")
                 else:
+                    data_ent_val = str(data_entrega)
+                    if status_inicial == "Entregue / Concluído" and not data_ent_val:
+                        data_ent_val = str(datetime.date.today())
+
                     nova_carga = {
                         "id": str(id_planejamento),
                         "motorista": motorista,
@@ -454,7 +445,7 @@ elif menu == "➕ Nova Carga":
                         "ajudantes": ajudantes,
                         "data_carga": str(data_carga),
                         "data_saida": str(data_saida),
-                        "data_entrega": str(data_entrega),
+                        "data_entrega": data_ent_val,
                         "status": status_inicial,
                     }
                     salvar_documento("cargas", str(id_planejamento), nova_carga)
@@ -523,43 +514,78 @@ elif menu == "👥 Cadastros (Equipe)":
                 st.rerun()
 
 # ----------------------------------------------------
-# 4. RELATÓRIO SEMANAL DE EXECUÇÃO E EXPORTAÇÃO
+# 4. DASHBOARD E RELATÓRIO SEMANAL
 # ----------------------------------------------------
-elif menu == "📊 Relatório Semanal":
-    st.subheader("Relatório de Execução Semanal")
+elif menu == "📊 Dashboard e Relatório":
+    st.subheader("📊 Dashboard Dinâmico e Indicadores")
 
     if not cargas_lista:
-        st.info("Nenhuma carga cadastrada para gerar relatório.")
+        st.info("Nenhuma carga cadastrada para exibir o dashboard.")
     else:
-        df = preparar_dataframe(cargas_lista)
+        df_raw = pd.DataFrame(cargas_lista)
+        
+        # Filtros de data para o dashboard
+        col_df1, col_df2 = st.columns(2)
+        with col_df1:
+            db_inicio = st.date_input("Filtrar Dashboard a partir de", value=datetime.date.today() - datetime.timedelta(days=30), key="db_ini")
+        with col_df2:
+            db_fim = st.date_input("Até a data", value=datetime.date.today() + datetime.timedelta(days=30), key="db_fim")
 
-        total_cargas = len(df)
-        cargas_entregues = len(df[df["status"] == "Entregue / Concluído"]) if "status" in df.columns else 0
+        # Filtrar DataFrame base nas datas
+        cargas_filtradas_db = []
+        for c in cargas_lista:
+            dt_s = c.get("data_saida") or c.get("data_carga")
+            if dt_s:
+                try:
+                    dt_obj = datetime.date.fromisoformat(str(dt_s).split("T")[0])
+                    if db_inicio <= dt_obj <= db_fim:
+                        cargas_filtradas_db.append(c)
+                except:
+                    cargas_filtradas_db.append(c)
+            else:
+                cargas_filtradas_db.append(c)
 
-        col_m1, col_m2, col_m3 = st.columns(3)
-        col_m1.metric("Total de Cargas Registradas", total_cargas)
-        col_m2.metric("Cargas Concluídas", cargas_entregues)
-        col_m3.metric(
-            "Taxa de Conclusão",
-            f"{(cargas_entregues / total_cargas * 100):.1f}%" if total_cargas > 0 else "0%",
-        )
+        df_db = pd.DataFrame(cargas_filtradas_db)
+
+        if df_db.empty:
+            st.warning("Nenhuma carga encontrada no período selecionado para o dashboard.")
+        else:
+            total_cargas = len(df_db)
+            cargas_entregues = len(df_db[df_db["status"] == "Entregue / Concluído"]) if "status" in df_db.columns else 0
+            cargas_transito = len(df_db[df_db["status"].str.contains("Trânsito|Pátio|Aguardando", na=False)]) if "status" in df_db.columns else 0
+
+            m1, m2, m3, m4 = st.columns(4)
+            m1.metric("📦 Cargas no Período", total_cargas)
+            m2.metric("✅ Concluídas", cargas_entregues)
+            m3.metric("🚚 Em Andamento", cargas_transito)
+            m4.metric("📈 Taxa de Conclusão", f"{(cargas_entregues / total_cargas * 100):.1f}%" if total_cargas > 0 else "0%")
+
+            st.markdown("---")
+            
+            col_g1, col_g2 = st.columns(2)
+
+            with col_g1:
+                st.markdown("### 📊 Status das Cargas")
+                if "status" in df_db.columns:
+                    status_counts = df_db["status"].value_counts()
+                    st.bar_chart(status_counts)
+
+            with col_g2:
+                st.markdown("### 🚚 Produtividade por Motorista")
+                if "motorista" in df_db.columns:
+                    mot_counts = df_db["motorista"].value_counts()
+                    st.bar_chart(mot_counts)
 
         st.markdown("---")
-        st.markdown("### Produtividade por Motorista")
-        if "motorista" in df.columns:
-            prod_motorista = df["motorista"].value_counts().reset_index()
-            prod_motorista.columns = ["Motorista", "Total de Viagens Atribuídas"]
-            st.dataframe(prod_motorista, use_container_width=True)
-
-        st.markdown("### Detalhamento Geral de Todas as Cargas")
-        st.dataframe(df, use_container_width=True)
+        st.subheader("📋 Detalhamento Geral de Todas as Cargas")
+        df_tabela = preparar_dataframe(cargas_lista)
+        st.dataframe(df_tabela, use_container_width=True)
 
         st.markdown("### Exportar Relatório de Cargas")
-        
         col_exp1, col_exp2 = st.columns(2)
 
         with col_exp1:
-            excel_data = gerar_excel_profissional(df)
+            excel_data = gerar_excel_profissional(df_tabela)
             st.download_button(
                 label="📥 Baixar Excel (.xlsx)",
                 data=excel_data,
@@ -568,7 +594,7 @@ elif menu == "📊 Relatório Semanal":
             )
 
         with col_exp2:
-            pdf_bytes = gerar_pdf(df)
+            pdf_bytes = gerar_pdf(df_tabela)
             st.download_button(
                 label="📄 Baixar PDF",
                 data=pdf_bytes,
