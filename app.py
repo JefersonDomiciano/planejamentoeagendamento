@@ -60,7 +60,7 @@ st.markdown(
 st.title("🚚 Painel de Controle de Cargas e Agendamentos")
 
 # Configuração do Firebase Firestore via REST API (Funciona perfeitamente no Render)
-FIREBASE_PROJECT_ID = "planejamentoagendamento" # Substitua pelo ID do seu projeto no Firebase se for diferente
+FIREBASE_PROJECT_ID = "logistica-d6c14" # Substitua pelo ID do seu projeto no Firebase se for diferente
 
 def formatar_data_br(data_str):
     if not data_str:
