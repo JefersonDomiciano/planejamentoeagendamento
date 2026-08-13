@@ -4,10 +4,6 @@ import pandas as pd
 import streamlit as st
 import firebase_admin
 from firebase_admin import credentials, firestore
-from fpdf import FPDF
-import openpyxl
-from openpyxl.styles import Font, Alignment, PatternFill, Border, Side
-from openpyxl.utils import get_column_letter
 
 st.set_page_config(
     page_title="Gestão de Cargas - Logística",
@@ -67,7 +63,7 @@ def init_firebase():
         try:
             cred = credentials.Certificate("serviceAccountKey.json")
             firebase_admin.initialize_app(cred)
-        except Exception as e:
+        except Exception:
             return None
     return firestore.client()
 
@@ -76,10 +72,14 @@ st.title("🚚 Painel de Controle de Cargas e Agendamentos")
 db = init_firebase()
 usar_firebase = db is not None
 
+if not usar_firebase:
+    st.error("⚠️ Erro de conexão com o Firebase. Verifique o arquivo 'serviceAccountKey.json' no repositório.")
+
 def carregar_dados(colecao):
     if usar_firebase:
         try:
-            docs = db.collection(colecao).get()
+            # Timeout curto para evitar travamento da página
+            docs = db.collection(colecao).get(timeout=3)
             return [doc.to_dict() for doc in docs]
         except Exception:
             return []
@@ -90,7 +90,7 @@ def salvar_dado(colecao, dados, doc_id):
         try:
             db.collection(colecao).document(str(doc_id)).set(dados)
         except Exception as e:
-            st.error(f"Erro ao salvar: {e}")
+            st.error(f"Erro ao salvar no Firebase: {e}")
 
 def adicionar_dado(colecao, dados, doc_id=None):
     if usar_firebase:
@@ -100,14 +100,14 @@ def adicionar_dado(colecao, dados, doc_id=None):
             else:
                 db.collection(colecao).add(dados)
         except Exception as e:
-            st.error(f"Erro ao adicionar: {e}")
+            st.error(f"Erro ao adicionar no Firebase: {e}")
 
 def formatar_data_br(data_str):
     if not data_str: return ""
     try: return datetime.date.fromisoformat(str(data_str)).strftime('%d/%m/%Y')
     except: return str(data_str)
 
-# Carregamento inicial das listas
+# Carregamento exclusivo do Firebase
 motoristas_raw = carregar_dados("motoristas")
 ajudantes_raw = carregar_dados("ajudantes")
 cargas_lista = carregar_dados("cargas")
@@ -121,9 +121,8 @@ tab1, tab2, tab3, tab4 = st.tabs(["📋 Painel (Kanban)", "➕ Nova Carga", "�
 with tab1:
     st.subheader("Visão Geral das Cargas")
     if not cargas_lista:
-        st.info("Nenhuma carga cadastrada no momento. Utilize a aba 'Nova Carga' para começar.")
+        st.info("Nenhuma carga cadastrada no Firebase ou aguardando conexão. Utilize a aba 'Nova Carga' para começar.")
     else:
-        # Colunas do Kanban
         col_k1, col_k2, col_k3, col_k4 = st.columns(4)
         
         status_map = {
@@ -174,7 +173,7 @@ with tab2:
             data_saida = st.date_input("Data de Saída", datetime.date.today())
             data_entrega = st.date_input("Previsão de Entrega", datetime.date.today())
             
-        submitted = st.form_submit_button("Salvar Carga")
+        submitted = st.form_submit_button("Salvar Carga no Firebase")
         if submitted:
             if not carga_id:
                 st.error("O ID da carga é obrigatório!")
@@ -189,7 +188,7 @@ with tab2:
                     "status": "Pendente"
                 }
                 adicionar_dado("cargas", dados_carga, carga_id)
-                st.success(f"Carga {carga_id} cadastrada com sucesso!")
+                st.success(f"Carga {carga_id} salva no Firebase com sucesso!")
                 st.rerun()
 
 with tab3:
@@ -227,7 +226,7 @@ with tab3:
 with tab4:
     st.subheader("Relatório Semanal e Exportação")
     if not cargas_lista:
-        st.info("Sem dados suficientes para gerar relatório.")
+        st.info("Sem dados no Firebase para gerar relatório.")
     else:
         df_relatorio = pd.DataFrame(cargas_lista)
         st.dataframe(df_relatorio, use_container_width=True)
