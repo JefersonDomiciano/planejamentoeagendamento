@@ -123,17 +123,6 @@ def adicionar_dado(colecao, dados, doc_id=None):
     else:
         st.session_state[colecao].append(dados)
 
-def excluir_dado(colecao, campo_filtro, valor):
-    if usar_firebase:
-        docs = db.collection(colecao).where(campo_filtro, "==", valor).stream()
-        for doc in docs:
-            doc.reference.delete()
-    else:
-        if colecao == "cargas":
-            st.session_state.cargas = [c for c in st.session_state.cargas if c["id"] != valor]
-        else:
-            st.session_state.motoristas = [m for m in st.session_state.motoristas if m != valor]
-
 def formatar_data_br(data_str):
     if not data_str:
         return ""
@@ -264,12 +253,15 @@ menu = st.radio(
 
 st.markdown("---")
 
-motoristas_lista = [m.get("nome", m) if isinstance(m, dict) else m for m in carregar_dados("motoristas")]
-ajudantes_lista = [a.get("nome", a) if isinstance(a, dict) else a for a in carregar_dados("ajudantes")]
+motoristas_raw = carregar_dados("motoristas")
+ajudantes_raw = carregar_dados("ajudantes")
+
+motoristas_lista = [m.get("nome", m) if isinstance(m, dict) else m for m in motoristas_raw if m]
+ajudantes_lista = [a.get("nome", a) if isinstance(a, dict) else a for a in ajudantes_raw if a]
 cargas_lista = carregar_dados("cargas")
 
 # ----------------------------------------------------
-# 1. PAINEL (KANBAN) - Oculta Concluídas
+# 1. PAINEL (KANBAN)
 # ----------------------------------------------------
 if menu == "📋 Painel (Kanban)":
     st.subheader("Visão Geral das Cargas Ativas")
@@ -279,7 +271,6 @@ if menu == "📋 Painel (Kanban)":
         motoristas_filtro_opcoes = ["Todos os Motoristas"] + motoristas_lista
         motorista_selecionado = st.selectbox("Filtrar por Motorista", motoristas_filtro_opcoes)
 
-    # Exclui as cargas concluídas do Kanban principal para limpar a tela
     cargas_filtradas_periodo = [c for c in cargas_lista if c.get("status") != "Entregue / Concluído"]
 
     if motorista_selecionado != "Todos os Motoristas":
@@ -333,7 +324,10 @@ if menu == "📋 Painel (Kanban)":
                     
                     with c_del:
                         if st.button("🗑️", key=f"btn_del_{carga_id}", help="Excluir"):
-                            excluir_dado("cargas", "id", carga_id)
+                            if usar_firebase:
+                                db.collection("cargas").document(str(carga_id)).delete()
+                            else:
+                                st.session_state.cargas = [c for c in st.session_state.cargas if c["id"] != carga_id]
                             st.rerun()
 
                     novo_status = st.selectbox(
@@ -395,7 +389,7 @@ elif menu == "➕ Nova Carga":
 
         with col1:
             motorista = st.selectbox("Motorista Responsável", motoristas_lista if motoristas_lista else ["Nenhum cadastrado"])
-            destino = st.text_input("Região / Cidades de Destino", placeholder="Ex: Uberaba, Araxá (Múltiplas entregas)")
+            destino = st.text_input("Região / Cidades de Destino", placeholder="Ex: Uberaba, Araxá")
             observacoes = st.text_area("Observações / Rota", placeholder="Ex: Carga com entregas em lojas diferentes")
 
         with col2:
@@ -446,8 +440,8 @@ elif menu == "👥 Cadastros (Equipe)":
 
     with col1:
         st.markdown("### Motoristas")
-        novo_mot = st.text_input("Adicionar novo motorista")
-        if st.button("Cadastrar Motorista"):
+        novo_mot = st.text_input("Adicionar novo motorista", key="input_novo_mot")
+        if st.button("Cadastrar Motorista", key="btn_cad_mot"):
             if novo_mot and novo_mot not in motoristas_lista:
                 adicionar_dado("motoristas", {"nome": novo_mot})
                 st.success(f"Motorista {novo_mot} adicionado!")
@@ -462,12 +456,14 @@ elif menu == "👥 Cadastros (Equipe)":
                 if usar_firebase:
                     docs = db.collection("motoristas").where("nome", "==", m).stream()
                     for d in docs: d.reference.delete()
+                else:
+                    st.session_state.motoristas = [item for item in st.session_state.motoristas if item != m]
                 st.rerun()
 
     with col2:
         st.markdown("### Ajudantes")
-        novo_aju = st.text_input("Adicionar novo ajudante")
-        if st.button("Cadastrar Ajudante"):
+        novo_aju = st.text_input("Adicionar novo ajudante", key="input_novo_aju")
+        if st.button("Cadastrar Ajudante", key="btn_cad_aju"):
             if novo_aju and novo_aju not in ajudantes_lista:
                 adicionar_dado("ajudantes", {"nome": novo_aju})
                 st.success(f"Ajudante {novo_aju} adicionado!")
@@ -482,6 +478,8 @@ elif menu == "👥 Cadastros (Equipe)":
                 if usar_firebase:
                     docs = db.collection("ajudantes").where("nome", "==", a).stream()
                     for d in docs: d.reference.delete()
+                else:
+                    st.session_state.ajudantes = [item for item in st.session_state.ajudantes if item != a]
                 st.rerun()
 
 # ----------------------------------------------------
@@ -504,7 +502,6 @@ elif menu == "📊 Relatório Semanal":
             mot_rel_opcoes = ["Todos os Motoristas"] + motoristas_lista
             motorista_rel_selecionado = st.selectbox("Filtrar por Motorista", mot_rel_opcoes)
 
-        # Aplicando filtros nas cargas (incluindo as concluídas)
         cargas_filtradas_rel = cargas_lista
 
         if motorista_rel_selecionado != "Todos os Motoristas":
