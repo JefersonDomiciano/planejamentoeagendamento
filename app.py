@@ -232,22 +232,28 @@ def gerar_pdf(df):
     return bytes(pdf.output(dest='S'))
 
 try:
+    st.write("🔄 Buscando dados do Firestore...")
     motoristas_raw = carregar_dados("motoristas") or []
     ajudantes_raw = carregar_dados("ajudantes") or []
     cargas_lista = carregar_dados("cargas") or []
+    st.write("✅ Dados carregados com sucesso. Montando interface...")
 except Exception as e:
-    st.error(f"Erro ao buscar coleções: {e}")
+    st.error(f"Erro crítico ao buscar coleções: {e}")
     motoristas_raw, ajudantes_raw, cargas_lista = [], [], []
 
 motoristas_lista = [m.get("nome", str(m)) for m in motoristas_raw if m] if isinstance(motoristas_raw, list) else []
 ajudantes_lista = [a.get("nome", str(a)) for a in ajudantes_raw if a] if isinstance(ajudantes_raw, list) else []
 
-tab1, tab2, tab3, tab4 = st.tabs([
-    "📋 Painel (Kanban)", 
-    "➕ Nova Carga", 
-    "👥 Cadastros (Equipe)", 
-    "📊 Relatório Semanal"
-])
+try:
+    tab1, tab2, tab3, tab4 = st.tabs([
+        "📋 Painel (Kanban)", 
+        "➕ Nova Carga", 
+        "👥 Cadastros (Equipe)", 
+        "📊 Relatório Semanal"
+    ])
+    st.write("✅ Abas criadas com sucesso!")
+except Exception as e:
+    st.error(f"Erro ao criar as abas: {e}")
 
 # ----------------------------------------------------
 # 1. PAINEL (KANBAN)
