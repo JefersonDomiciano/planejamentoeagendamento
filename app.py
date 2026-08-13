@@ -83,11 +83,10 @@ st.markdown(
 
 st.title("🚚 Painel de Controle de Cargas e Agendamentos")
 
-# Configuração do Firebase Firestore via REST API
 FIREBASE_PROJECT_ID = "logistica-d6c14"
 
 def formatar_data_br(data_str):
-    if not data_str:
+    if not data_str or str(data_str).lower() == "nan" or str(data_str).lower() == "none":
         return ""
     try:
         dt = datetime.datetime.strptime(str(data_str), "%Y-%m-%d")
@@ -107,7 +106,6 @@ def carregar_colecao(colecao):
                 fields = doc.get("fields", {})
                 item = {"id": doc_id}
                 for k, v in fields.items():
-                    # Lida com tipos string ou array do Firestore REST
                     if "arrayValue" in v:
                         arr_vals = v["arrayValue"].get("values", [])
                         item[k] = [list(x.values())[0] for x in arr_vals]
@@ -139,7 +137,6 @@ def deletar_documento(colecao, doc_id):
     except Exception as e:
         st.error(f"Erro ao excluir no Firebase: {e}")
 
-# Inicializando Estado com Firebase
 if "cargas" not in st.session_state:
     st.session_state["cargas"] = carregar_colecao("cargas")
 if "motoristas" not in st.session_state:
@@ -151,7 +148,6 @@ cargas_lista = st.session_state["cargas"]
 motoristas_lista = [m.get("nome", "") for m in st.session_state["motoristas"] if m.get("nome")]
 ajudantes_lista = [a.get("nome", "") for a in st.session_state["ajudantes"] if a.get("nome")]
 
-# Fallback padrão caso esteja vazio
 if not motoristas_lista:
     motoristas_lista = ["Carlos Silva", "João Pereira", "Maurício", "Cícero Taveira"]
 if not ajudantes_lista:
@@ -205,7 +201,7 @@ def gerar_excel_profissional(df):
         bottom=Side(style='thin', color='D9D9D9')
     )
 
-    headers = ["ID", "Motorista", "Destino", "Observações", "Ajudantes", "Data Carga", "Data Saída", "Data Entrega", "Status"]
+    headers = ["ID Planejamento", "Motorista", "Destino", "Observações", "Ajudantes", "Data Carga", "Data Saída", "Data Entrega", "Status"]
     
     for col_num, header in enumerate(headers[:len(df.columns)], 1):
         cell = ws.cell(row=1, column=col_num)
@@ -221,7 +217,7 @@ def gerar_excel_profissional(df):
         ws.row_dimensions[row_num].height = 20
         for col_num, value in enumerate(row_data, 1):
             cell = ws.cell(row=row_num, column=col_num)
-            cell.value = value
+            cell.value = "" if str(value).lower() in ["nan", "none"] else value
             cell.font = data_font
             cell.border = thin_border
             if col_num in [1, 6, 7, 8]:
@@ -238,38 +234,39 @@ def gerar_excel_profissional(df):
     return output.getvalue()
 
 def gerar_pdf(df):
-    pdf = FPDF(orientation='P', unit='mm', format='A4')
+    pdf = FPDF(orientation='L', unit='mm', format='A4') # Paisagem para caber perfeitamente
     pdf.add_page()
     
     pdf.set_font("Arial", "B", 14)
-    pdf.cell(190, 8, txt="Relatório de Cargas", ln=True, align="C")
+    pdf.cell(277, 8, txt="Relatório de Cargas", ln=True, align="C")
     
     pdf.set_font("Arial", "", 9)
-    pdf.cell(190, 5, txt=f"Data de geração: {datetime.date.today().strftime('%d/%m/%Y')}", ln=True, align="C")
+    pdf.cell(277, 5, txt=f"Data de geração: {datetime.date.today().strftime('%d/%m/%Y')}", ln=True, align="C")
     pdf.ln(4)
 
-    pdf.set_font("Arial", "B", 8)
+    pdf.set_font("Arial", "B", 9)
     pdf.set_fill_color(47, 117, 181)
     pdf.set_text_color(255, 255, 255)
     
-    larguras = [10, 32, 38, 30, 25, 25, 30]
-    nomes_colunas = ["ID", "Motorista", "Destino", "Ajudantes", "Saída", "Entrega", "Status"]
+    larguras = [25, 40, 50, 45, 28, 28, 28, 33]
+    nomes_colunas = ["ID", "Motorista", "Destino", "Ajudantes", "Carga", "Saída", "Entrega", "Status"]
     
     for i, nome in enumerate(nomes_colunas):
         pdf.cell(larguras[i], 7, nome, 1, 0, "C", True)
     pdf.ln()
 
-    pdf.set_font("Arial", "", 7)
+    pdf.set_font("Arial", "", 8)
     pdf.set_text_color(0, 0, 0)
     
     for _, row in df.iterrows():
         pdf.cell(larguras[0], 6, str(row.get("id", "")), 1, 0, "C")
-        pdf.cell(larguras[1], 6, str(row.get("motorista", ""))[:18], 1, 0, "L")
-        pdf.cell(larguras[2], 6, str(row.get("destino", ""))[:22], 1, 0, "L")
-        pdf.cell(larguras[3], 6, str(row.get("ajudantes", ""))[:16], 1, 0, "L")
-        pdf.cell(larguras[4], 6, str(row.get("data_saida", "")), 1, 0, "C")
-        pdf.cell(larguras[5], 6, str(row.get("data_entrega", "")), 1, 0, "C")
-        pdf.cell(larguras[6], 6, str(row.get("status", ""))[:15], 1, 0, "C")
+        pdf.cell(larguras[1], 6, str(row.get("motorista", ""))[:22], 1, 0, "L")
+        pdf.cell(larguras[2], 6, str(row.get("destino", ""))[:30], 1, 0, "L")
+        pdf.cell(larguras[3], 6, str(row.get("ajudantes", ""))[:25], 1, 0, "L")
+        pdf.cell(larguras[4], 6, formatar_data_br(row.get("data_carga", "")), 1, 0, "C")
+        pdf.cell(larguras[5], 6, formatar_data_br(row.get("data_saida", "")), 1, 0, "C")
+        pdf.cell(larguras[6], 6, formatar_data_br(row.get("data_entrega", "")), 1, 0, "C")
+        pdf.cell(larguras[7], 6, str(row.get("status", ""))[:18], 1, 0, "C")
         pdf.ln()
 
     return bytes(pdf.output(dest='S'))
@@ -340,6 +337,7 @@ if menu == "📋 Painel (Kanban)":
                     with c_info:
                         st.markdown(f"""
                             <div style="border-left: 4px solid {cor_motorista}; padding-left: 8px; margin-bottom: 4px;">
+                                <b style="font-size: 13px; color: #58a6ff;">📌 ID: {carga_id}</b><br>
                                 <b style="font-size: 14px; color: #ffffff;">🚚 {motorista_atual}</b><br>
                                 <span style="font-size: 13px; color: #8b949e;">Destino:</span> <span style="color: #c9d1d9; font-weight: 500;">{carga.get('destino')}</span><br>
                                 <span style="font-size: 12px; color: #8b949e;">📅 Saída: {saida_br} | Entrega: {entrega_br}</span>
@@ -371,7 +369,7 @@ if menu == "📋 Painel (Kanban)":
 
                     if st.session_state.get(f"editando_{carga_id}", False):
                         with st.form(key=f"form_edit_{carga_id}"):
-                            st.markdown(f"**Editando Carga #{carga_id}**")
+                            st.markdown(f"**Editando Planejamento #{carga_id}**")
                             
                             mot_idx = motoristas_lista.index(carga.get("motorista")) if carga.get("motorista") in motoristas_lista else 0
                             novo_mot = st.selectbox("Motorista", motoristas_lista if motoristas_lista else [""], index=mot_idx)
@@ -412,6 +410,10 @@ elif menu == "➕ Nova Carga":
     st.subheader("Cadastrar Novo Agendamento de Carga")
 
     with st.form("form_nova_carga"):
+        col_id_manual, _ = st.columns([2, 2])
+        with col_id_manual:
+            id_planejamento = st.text_input("Número do Planejamento / ID da Carga", placeholder="Ex: 1042")
+
         col1, col2 = st.columns(2)
 
         with col1:
@@ -438,25 +440,29 @@ elif menu == "➕ Nova Carga":
         submit = st.form_submit_button("Salvar e Agendar Carga")
 
         if submit:
-            if destino and motorista:
-                novo_id = f"carga_{int(datetime.datetime.now().timestamp())}"
-                nova_carga = {
-                    "id": novo_id,
-                    "motorista": motorista,
-                    "destino": destino,
-                    "observacoes": observacoes,
-                    "ajudantes": ajudantes,
-                    "data_carga": str(data_carga),
-                    "data_saida": str(data_saida),
-                    "data_entrega": str(data_entrega),
-                    "status": status_inicial,
-                }
-                salvar_documento("cargas", novo_id, nova_carga)
-                st.session_state["cargas"].append(nova_carga)
-                st.success("Carga cadastrada com sucesso no banco de dados!")
-                st.rerun()
+            if id_planejamento and destino and motorista:
+                # Verificar se ID já existe
+                ids_existentes = [str(c.get("id")) for c in cargas_lista]
+                if str(id_planejamento) in ids_existentes:
+                    st.error(f"Já existe uma carga cadastrada com o ID/Planejamento '{id_planejamento}'. Use outro número.")
+                else:
+                    nova_carga = {
+                        "id": str(id_planejamento),
+                        "motorista": motorista,
+                        "destino": destino,
+                        "observacoes": observacoes,
+                        "ajudantes": ajudantes,
+                        "data_carga": str(data_carga),
+                        "data_saida": str(data_saida),
+                        "data_entrega": str(data_entrega),
+                        "status": status_inicial,
+                    }
+                    salvar_documento("cargas", str(id_planejamento), nova_carga)
+                    st.session_state["cargas"].append(nova_carga)
+                    st.success("Carga cadastrada com sucesso!")
+                    st.rerun()
             else:
-                st.error("Preencha o motorista e a região de destino.")
+                st.error("Preencha o Número do Planejamento, o Motorista e a Região de Destino.")
 
 # ----------------------------------------------------
 # 3. CADASTROS (EQUIPE)
