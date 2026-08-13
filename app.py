@@ -269,18 +269,18 @@ ajudantes_lista = [a.get("nome", a) if isinstance(a, dict) else a for a in carre
 cargas_lista = carregar_dados("cargas")
 
 # ----------------------------------------------------
-# 1. PAINEL (KANBAN)
+# 1. PAINEL (KANBAN) - Oculta Concluídas
 # ----------------------------------------------------
 if menu == "📋 Painel (Kanban)":
-    st.subheader("Visão Geral das Cargas")
+    st.subheader("Visão Geral das Cargas Ativas")
 
     col_f1, col_f2 = st.columns([2, 2])
     with col_f1:
         motoristas_filtro_opcoes = ["Todos os Motoristas"] + motoristas_lista
         motorista_selecionado = st.selectbox("Filtrar por Motorista", motoristas_filtro_opcoes)
 
-    # Exibe todas as cargas cadastradas independentemente da data
-    cargas_filtradas_periodo = cargas_lista
+    # Exclui as cargas concluídas do Kanban principal para limpar a tela
+    cargas_filtradas_periodo = [c for c in cargas_lista if c.get("status") != "Entregue / Concluído"]
 
     if motorista_selecionado != "Todos os Motoristas":
         cargas_filtradas_periodo = [c for c in cargas_filtradas_periodo if c.get("motorista") == motorista_selecionado]
@@ -485,55 +485,82 @@ elif menu == "👥 Cadastros (Equipe)":
                 st.rerun()
 
 # ----------------------------------------------------
-# 4. RELATÓRIO SEMANAL DE EXECUÇÃO E EXPORTAÇÃO
+# 4. RELATÓRIO COM FILTROS DE MÊS E MOTORISTA
 # ----------------------------------------------------
 elif menu == "📊 Relatório Semanal":
-    st.subheader("Relatório de Execução Semanal")
+    st.subheader("Relatório de Execução e Histórico de Cargas")
 
     if not cargas_lista:
         st.info("Nenhuma carga cadastrada para gerar relatório.")
     else:
-        df = preparar_dataframe(cargas_lista)
+        st.markdown("### 🔎 Filtros do Relatório")
+        col_f1, col_f2 = st.columns(2)
+
+        with col_f1:
+            meses_opcoes = ["Todos os Meses", "01 - Janeiro", "02 - Fevereiro", "03 - Março", "04 - Abril", "05 - Maio", "06 - Junho", "07 - Julho", "08 - Agosto", "09 - Setembro", "10 - Outubro", "11 - Novembro", "12 - Dezembro"]
+            mes_selecionado = st.selectbox("Filtrar por Mês (Data de Saída)", meses_opcoes)
+
+        with col_f2:
+            mot_rel_opcoes = ["Todos os Motoristas"] + motoristas_lista
+            motorista_rel_selecionado = st.selectbox("Filtrar por Motorista", mot_rel_opcoes)
+
+        # Aplicando filtros nas cargas (incluindo as concluídas)
+        cargas_filtradas_rel = cargas_lista
+
+        if motorista_rel_selecionado != "Todos os Motoristas":
+            cargas_filtradas_rel = [c for c in cargas_filtradas_rel if c.get("motorista") == motorista_rel_selecionado]
+
+        if mes_selecionado != "Todos os Meses":
+            mes_num = mes_selecionado.split(" - ")[0]
+            cargas_temp = []
+            for c in cargas_filtradas_rel:
+                data_str = c.get("data_saida") or c.get("data_carga")
+                if data_str:
+                    try:
+                        dt_obj = datetime.date.fromisoformat(data_str)
+                        if f"{dt_obj.month:02d}" == mes_num:
+                            cargas_temp.append(c)
+                    except:
+                        pass
+            cargas_filtradas_rel = cargas_temp
+
+        df = preparar_dataframe(cargas_filtradas_rel)
 
         total_cargas = len(df)
         cargas_entregues = len(df[df["status"] == "Entregue / Concluído"]) if "status" in df.columns else 0
 
         col_m1, col_m2, col_m3 = st.columns(3)
-        col_m1.metric("Total de Cargas Registradas", total_cargas)
-        col_m2.metric("Cargas Concluídas", cargas_entregues)
+        col_m1.metric("Cargas Filtradas", total_cargas)
+        col_m2.metric("Concluídas no Filtro", cargas_entregues)
         col_m3.metric(
             "Taxa de Conclusão",
             f"{(cargas_entregues / total_cargas * 100):.1f}%" if total_cargas > 0 else "0%",
         )
 
         st.markdown("---")
-        st.markdown("### Produtividade por Motorista")
-        if "motorista" in df.columns:
-            prod_motorista = df["motorista"].value_counts().reset_index()
-            prod_motorista.columns = ["Motorista", "Total de Viagens Atribuídas"]
-            st.dataframe(prod_motorista, use_container_width=True)
+        st.markdown("### Detalhamento das Cargas Filtradas")
+        if df.empty:
+            st.warning("Nenhuma carga encontrada com os filtros selecionados.")
+        else:
+            st.dataframe(df, use_container_width=True)
 
-        st.markdown("### Detalhamento Geral de Todas as Cargas")
-        st.dataframe(df, use_container_width=True)
+            st.markdown("### Exportar Cargas Filtradas")
+            col_exp1, col_exp2 = st.columns(2)
 
-        st.markdown("### Exportar Relatório de Cargas")
-        
-        col_exp1, col_exp2 = st.columns(2)
+            with col_exp1:
+                excel_data = gerar_excel_profissional(df)
+                st.download_button(
+                    label="📥 Baixar Excel (.xlsx)",
+                    data=excel_data,
+                    file_name='relatorio_cargas_filtrado.xlsx',
+                    mime='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+                )
 
-        with col_exp1:
-            excel_data = gerar_excel_profissional(df)
-            st.download_button(
-                label="📥 Baixar Excel (.xlsx)",
-                data=excel_data,
-                file_name='relatorio_de_cargas.xlsx',
-                mime='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
-            )
-
-        with col_exp2:
-            pdf_bytes = gerar_pdf(df)
-            st.download_button(
-                label="📄 Baixar PDF",
-                data=pdf_bytes,
-                file_name='relatorio_de_cargas.pdf',
-                mime='application/pdf',
-            )
+            with col_exp2:
+                pdf_bytes = gerar_pdf(df)
+                st.download_button(
+                    label="📄 Baixar PDF",
+                    data=pdf_bytes,
+                    file_name='relatorio_cargas_filtrado.pdf',
+                    mime='application/pdf',
+                )
