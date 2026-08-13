@@ -57,60 +57,56 @@ st.markdown(
     unsafe_allow_html=True,
 )
 
-@st.cache_resource
-def init_firebase():
-    if not firebase_admin._apps:
-        try:
-            cred = credentials.Certificate("serviceAccountKey.json")
-            firebase_admin.initialize_app(cred)
-        except Exception:
-            return None
-    return firestore.client()
-
 st.title("🚚 Painel de Controle de Cargas e Agendamentos")
 
-db = init_firebase()
-usar_firebase = db is not None
+@st.cache_resource
+def init_firebase():
+    try:
+        if not firebase_admin._apps:
+            cred = credentials.Certificate("serviceAccountKey.json")
+            firebase_admin.initialize_app(cred)
+        return firestore.client()
+    except Exception as e:
+        return None
 
-if not usar_firebase:
-    st.error("⚠️ Erro de conexão com o Firebase. Verifique o arquivo 'serviceAccountKey.json' no repositório.")
+db = init_firebase()
+
+if db is None:
+    st.error("❌ Falha crítica na conexão com o Firebase. Verifique se o arquivo 'serviceAccountKey.json' está correto no repositório.")
+    st.stop()
 
 def carregar_dados(colecao):
-    if usar_firebase:
-        try:
-            # Timeout curto para evitar travamento da página
-            docs = db.collection(colecao).get(timeout=3)
-            return [doc.to_dict() for doc in docs]
-        except Exception:
-            return []
-    return []
+    try:
+        docs = db.collection(colecao).stream()
+        return [doc.to_dict() for doc in docs]
+    except Exception as e:
+        st.warning(f"Erro ao carregar '{colecao}': {e}")
+        return []
 
 def salvar_dado(colecao, dados, doc_id):
-    if usar_firebase:
-        try:
-            db.collection(colecao).document(str(doc_id)).set(dados)
-        except Exception as e:
-            st.error(f"Erro ao salvar no Firebase: {e}")
+    try:
+        db.collection(colecao).document(str(doc_id)).set(dados)
+    except Exception as e:
+        st.error(f"Erro ao salvar: {e}")
 
 def adicionar_dado(colecao, dados, doc_id=None):
-    if usar_firebase:
-        try:
-            if doc_id:
-                db.collection(colecao).document(str(doc_id)).set(dados)
-            else:
-                db.collection(colecao).add(dados)
-        except Exception as e:
-            st.error(f"Erro ao adicionar no Firebase: {e}")
+    try:
+        if doc_id:
+            db.collection(colecao).document(str(doc_id)).set(dados)
+        else:
+            db.collection(colecao).add(dados)
+    except Exception as e:
+        st.error(f"Erro ao adicionar: {e}")
 
 def formatar_data_br(data_str):
     if not data_str: return ""
     try: return datetime.date.fromisoformat(str(data_str)).strftime('%d/%m/%Y')
     except: return str(data_str)
 
-# Carregamento exclusivo do Firebase
-motoristas_raw = carregar_dados("motoristas")
-ajudantes_raw = carregar_dados("ajudantes")
-cargas_lista = carregar_dados("cargas")
+with st.spinner("Carregando dados do Firebase..."):
+    motoristas_raw = carregar_dados("motoristas")
+    ajudantes_raw = carregar_dados("ajudantes")
+    cargas_lista = carregar_dados("cargas")
 
 motoristas_lista = [m.get("nome", "") for m in motoristas_raw]
 ajudantes_lista = [a.get("nome", "") for a in ajudantes_raw]
@@ -121,7 +117,7 @@ tab1, tab2, tab3, tab4 = st.tabs(["📋 Painel (Kanban)", "➕ Nova Carga", "�
 with tab1:
     st.subheader("Visão Geral das Cargas")
     if not cargas_lista:
-        st.info("Nenhuma carga cadastrada no Firebase ou aguardando conexão. Utilize a aba 'Nova Carga' para começar.")
+        st.info("Nenhuma carga cadastrada no Firebase. Utilize a aba 'Nova Carga' para começar.")
     else:
         col_k1, col_k2, col_k3, col_k4 = st.columns(4)
         
