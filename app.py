@@ -1,9 +1,14 @@
 import datetime
+import io
 import json
 import os
 import requests
 import pandas as pd
 import streamlit as st
+from fpdf import FPDF
+import openpyxl
+from openpyxl.styles import Font, Alignment, PatternFill, Border, Side
+from openpyxl.utils import get_column_letter
 
 st.set_page_config(
     page_title="Gestão de Cargas - Logística",
@@ -26,7 +31,7 @@ st.markdown(
             padding: 10px; 
             border-radius: 8px;
             font-weight: 600;
-            font-size: 13px;
+            font-size: 14px;
             border: 1px solid #30363d;
             letter-spacing: 0.5px;
             margin-bottom: 10px;
@@ -52,6 +57,25 @@ st.markdown(
             font-size: 12px !important;
             color: #8b949e !important;
         }
+
+        button.btn-kanban {
+            width: 34px !important;
+            height: 34px !important;
+            min-height: 34px !important;
+            max-height: 34px !important;
+            padding: 0px !important;
+            margin: 0 auto !important;
+            background-color: #21262d !important;
+            border: 1px solid #30363d !important;
+            border-radius: 6px !important;
+            font-size: 14px !important;
+            line-height: 1 !important;
+        }
+        
+        button.btn-kanban:hover {
+            border-color: #58a6ff !important;
+            background-color: #30363d !important;
+        }
     </style>
 """,
     unsafe_allow_html=True,
@@ -59,8 +83,8 @@ st.markdown(
 
 st.title("🚚 Painel de Controle de Cargas e Agendamentos")
 
-# Configuração do Firebase Firestore via REST API (Funciona perfeitamente no Render)
-FIREBASE_PROJECT_ID = "logistica-d6c14" # Substitua pelo ID do seu projeto no Firebase se for diferente
+# Configuração do Firebase Firestore via REST API
+FIREBASE_PROJECT_ID = "logistica-d6c14"
 
 def formatar_data_br(data_str):
     if not data_str:
@@ -69,7 +93,7 @@ def formatar_data_br(data_str):
         dt = datetime.datetime.strptime(str(data_str), "%Y-%m-%d")
         return dt.strftime("%d/%m/%Y")
     except Exception:
-        return data_str
+        return str(data_str)
 
 def carregar_colecao(colecao):
     url = f"https://firestore.googleapis.com/v1/projects/{FIREBASE_PROJECT_ID}/databases/(default)/documents/{colecao}"
@@ -83,7 +107,12 @@ def carregar_colecao(colecao):
                 fields = doc.get("fields", {})
                 item = {"id": doc_id}
                 for k, v in fields.items():
-                    item[k] = list(v.values())[0]
+                    # Lida com tipos string ou array do Firestore REST
+                    if "arrayValue" in v:
+                        arr_vals = v["arrayValue"].get("values", [])
+                        item[k] = [list(x.values())[0] for x in arr_vals]
+                    else:
+                        item[k] = list(v.values())[0]
                 documentos.append(item)
             return documentos
     except Exception:
@@ -91,7 +120,7 @@ def carregar_colecao(colecao):
     return []
 
 def salvar_documento(colecao, doc_id, dados):
-    url = f"https://firestore.googleapis.com/v1/projects/{FIREBASE_PROJECT_ID}/databases/(default)/documents/{colecao}?documentId={doc_id}"
+    url = f"https://firestore.googleapis.com/v1/projects/{FIREBASE_PROJECT_ID}/databases/(default)/documents/{colecao}/{doc_id}"
     fields = {}
     for k, v in dados.items():
         if isinstance(v, list):
@@ -99,7 +128,7 @@ def salvar_documento(colecao, doc_id, dados):
         else:
             fields[k] = {"stringValue": str(v)}
     try:
-        requests.patch(f"https://firestore.googleapis.com/v1/projects/{FIREBASE_PROJECT_ID}/databases/(default)/documents/{colecao}/{doc_id}", json={"fields": fields}, timeout=5)
+        requests.patch(url, json={"fields": fields}, timeout=5)
     except Exception as e:
         st.error(f"Erro ao salvar no Firebase: {e}")
 
@@ -122,226 +151,421 @@ cargas_lista = st.session_state["cargas"]
 motoristas_lista = [m.get("nome", "") for m in st.session_state["motoristas"] if m.get("nome")]
 ajudantes_lista = [a.get("nome", "") for a in st.session_state["ajudantes"] if a.get("nome")]
 
-if "editando_idx" not in st.session_state:
-    st.session_state["editando_idx"] = None
+# Fallback padrão caso esteja vazio
+if not motoristas_lista:
+    motoristas_lista = ["Carlos Silva", "João Pereira", "Maurício", "Cícero Taveira"]
+if not ajudantes_lista:
+    ajudantes_lista = ["Pedrinho", "Lucas Souza"]
 
-tab1, tab2, tab3, tab4 = st.tabs(["📋 Painel (Kanban)", "➕ Nova Carga", "👥 Cadastros (Equipe)", "📊 Relatório Semanal"])
+menu = st.radio(
+    "Menu Principal",
+    [
+        "📋 Painel (Kanban)",
+        "➕ Nova Carga",
+        "👥 Cadastros (Equipe)",
+        "📊 Relatório Semanal",
+    ],
+    horizontal=True,
+)
 
-with tab1:
-    st.subheader("Visão Geral das Cargas")
+st.markdown("---")
+
+def preparar_dataframe(cargas_lista):
+    df = pd.DataFrame(cargas_lista)
+    if df.empty:
+        return df
     
-    if st.session_state["editando_idx"] is not None:
-        idx_edit = st.session_state["editando_idx"]
-        if idx_edit < len(cargas_lista):
-            carga_edit = cargas_lista[idx_edit]
-            st.markdown("---")
-            st.info(f"✏️ Editando Carga para: **{carga_edit.get('destino')}**")
-            
-            with st.form("form_editar_carga"):
-                col_e1, col_e2 = st.columns(2)
-                with col_e1:
-                    novo_destino = st.text_input("Destino", value=carga_edit.get("destino", ""))
-                    idx_mot = motoristas_lista.index(carga_edit.get("motorista")) if carga_edit.get("motorista") in motoristas_lista else 0
-                    novo_motorista = st.selectbox("Motorista", motoristas_lista if motoristas_lista else ["Nenhum cadastrado"], index=idx_mot)
-                    
-                    ajudantes_atuais = carga_edit.get("ajudantes", [])
-                    if isinstance(ajudantes_atuais, str):
-                        ajudantes_atuais = [a.strip() for a in ajudantes_atuais.split(",") if a.strip()]
-                    novos_ajudantes = st.multiselect("Ajudantes", ajudantes_lista, default=[a for a in ajudantes_atuais if a in ajudantes_lista])
-                
-                with col_e2:
-                    dt_car_val = datetime.datetime.strptime(carga_edit.get("data_carregamento"), "%Y-%m-%d").date() if carga_edit.get("data_carregamento") else None
-                    dt_said_val = datetime.datetime.strptime(carga_edit.get("data_saida"), "%Y-%m-%d").date() if carga_edit.get("data_saida") else None
-                    
-                    nova_data_carregamento = st.date_input("Previsão / Data de Carregamento", value=dt_car_val if dt_car_val else datetime.date.today())
-                    usar_carregamento = st.checkbox("Incluir Data de Carregamento", value=True if carga_edit.get("data_carregamento") else False)
+    if "ajudantes" in df.columns:
+        df["ajudantes"] = df["ajudantes"].apply(lambda x: ", ".join(x) if isinstance(x, list) else str(x))
+    
+    for col in ["data_carga", "data_saida", "data_entrega"]:
+        if col in df.columns:
+            df[col] = df[col].apply(formatar_data_br)
+    
+    colunas_desejadas = ["id", "motorista", "destino", "observacoes", "ajudantes", "data_carga", "data_saida", "data_entrega", "status"]
+    colunas_existentes = [col for col in colunas_desejadas if col in df.columns]
+    df = df[colunas_existentes]
+    return df
 
-                    nova_data_saida = st.date_input("Data de Saída", value=dt_said_val if dt_said_val else datetime.date.today())
-                    usar_saida = st.checkbox("Incluir Data de Saída", value=True if carga_edit.get("data_saida") else False)
-                    
-                    status_opcoes = ["Previsão de Carregamento", "Carregando", "Em Rota", "Concluído"]
-                    st_atual = carga_edit.get("status", "Previsão de Carregamento")
-                    idx_st = status_opcoes.index(st_atual) if st_atual in status_opcoes else 0
-                    novo_status = st.selectbox("Status", status_opcoes, index=idx_st)
+def gerar_excel_profissional(df):
+    output = io.BytesIO()
+    wb = openpyxl.Workbook()
+    ws = wb.active
+    ws.title = "Relatorio de Cargas"
 
-                col_salvar, col_cancelar = st.columns(2)
-                with col_salvar:
-                    salvar_edicao = st.form_submit_button("💾 Salvar Alterações")
-                with col_cancelar:
-                    cancelar_edicao = st.form_submit_button("❌ Cancelar")
+    header_font = Font(name="Arial", size=10, bold=True, color="FFFFFF")
+    header_fill = PatternFill(start_color="2F75B5", end_color="2F75B5", fill_type="solid")
+    data_font = Font(name="Arial", size=9)
+    center_alignment = Alignment(horizontal="center", vertical="center")
+    left_alignment = Alignment(horizontal="left", vertical="center")
+    thin_border = Border(
+        left=Side(style='thin', color='D9D9D9'),
+        right=Side(style='thin', color='D9D9D9'),
+        top=Side(style='thin', color='D9D9D9'),
+        bottom=Side(style='thin', color='D9D9D9')
+    )
 
-                if salvar_edicao:
-                    doc_id = carga_edit.get("id")
-                    dados_atualizados = {
-                        "id": doc_id,
-                        "destino": novo_destino,
-                        "motorista": novo_motorista,
-                        "ajudantes": novos_ajudantes,
-                        "data_carregamento": str(nova_data_carregamento) if usar_carregamento else "",
-                        "data_saida": str(nova_data_saida) if usar_saida else "",
-                        "status": novo_status
-                    }
-                    salvar_documento("cargas", doc_id, dados_atualizados)
-                    cargas_lista[idx_edit] = dados_atualizados
-                    st.session_state["cargas"] = cargas_lista
-                    st.session_state["editando_idx"] = None
-                    st.success("Carga atualizada com sucesso!")
-                    st.rerun()
+    headers = ["ID", "Motorista", "Destino", "Observações", "Ajudantes", "Data Carga", "Data Saída", "Data Entrega", "Status"]
+    
+    for col_num, header in enumerate(headers[:len(df.columns)], 1):
+        cell = ws.cell(row=1, column=col_num)
+        cell.value = header
+        cell.font = header_font
+        cell.fill = header_fill
+        cell.alignment = center_alignment
+        cell.border = thin_border
+    
+    ws.row_dimensions[1].height = 24
 
-                if cancelar_edicao:
-                    st.session_state["editando_idx"] = None
-                    st.rerun()
-            st.markdown("---")
+    for row_num, row_data in enumerate(df.values, 2):
+        ws.row_dimensions[row_num].height = 20
+        for col_num, value in enumerate(row_data, 1):
+            cell = ws.cell(row=row_num, column=col_num)
+            cell.value = value
+            cell.font = data_font
+            cell.border = thin_border
+            if col_num in [1, 6, 7, 8]:
+                cell.alignment = center_alignment
+            else:
+                cell.alignment = left_alignment
 
-    if not cargas_lista:
-        st.info("Nenhuma carga cadastrada.")
-    else:
-        col_k1, col_k2, col_k3, col_k4 = st.columns(4)
-        
-        status_map = {
-            "Previsão de Carregamento": col_k1,
-            "Carregando": col_k2,
-            "Em Rota": col_k3,
-            "Concluído": col_k4
-        }
-        
-        with col_k1: st.markdown('<div class="kanban-header">⏳ Previsão de Carregamento</div>', unsafe_allow_html=True)
-        with col_k2: st.markdown('<div class="kanban-header">📦 Carregando</div>', unsafe_allow_html=True)
-        with col_k3: st.markdown('<div class="kanban-header">🚚 Em Rota</div>', unsafe_allow_html=True)
-        with col_k4: st.markdown('<div class="kanban-header">✅ Concluído</div>', unsafe_allow_html=True)
-        
-        for idx, carga in enumerate(cargas_lista):
-            status_atual = carga.get("status", "Previsão de Carregamento")
-            col_alvo = status_map.get(status_atual, col_k1)
-            
-            with col_alvo:
+    for col in ws.columns:
+        max_len = max(len(str(cell.value or '')) for cell in col)
+        col_letter = get_column_letter(col[0].column)
+        ws.column_dimensions[col_letter].width = max(max_len + 5, 15)
+
+    wb.save(output)
+    return output.getvalue()
+
+def gerar_pdf(df):
+    pdf = FPDF(orientation='P', unit='mm', format='A4')
+    pdf.add_page()
+    
+    pdf.set_font("Arial", "B", 14)
+    pdf.cell(190, 8, txt="Relatório de Cargas", ln=True, align="C")
+    
+    pdf.set_font("Arial", "", 9)
+    pdf.cell(190, 5, txt=f"Data de geração: {datetime.date.today().strftime('%d/%m/%Y')}", ln=True, align="C")
+    pdf.ln(4)
+
+    pdf.set_font("Arial", "B", 8)
+    pdf.set_fill_color(47, 117, 181)
+    pdf.set_text_color(255, 255, 255)
+    
+    larguras = [10, 32, 38, 30, 25, 25, 30]
+    nomes_colunas = ["ID", "Motorista", "Destino", "Ajudantes", "Saída", "Entrega", "Status"]
+    
+    for i, nome in enumerate(nomes_colunas):
+        pdf.cell(larguras[i], 7, nome, 1, 0, "C", True)
+    pdf.ln()
+
+    pdf.set_font("Arial", "", 7)
+    pdf.set_text_color(0, 0, 0)
+    
+    for _, row in df.iterrows():
+        pdf.cell(larguras[0], 6, str(row.get("id", "")), 1, 0, "C")
+        pdf.cell(larguras[1], 6, str(row.get("motorista", ""))[:18], 1, 0, "L")
+        pdf.cell(larguras[2], 6, str(row.get("destino", ""))[:22], 1, 0, "L")
+        pdf.cell(larguras[3], 6, str(row.get("ajudantes", ""))[:16], 1, 0, "L")
+        pdf.cell(larguras[4], 6, str(row.get("data_saida", "")), 1, 0, "C")
+        pdf.cell(larguras[5], 6, str(row.get("data_entrega", "")), 1, 0, "C")
+        pdf.cell(larguras[6], 6, str(row.get("status", ""))[:15], 1, 0, "C")
+        pdf.ln()
+
+    return bytes(pdf.output(dest='S'))
+
+# ----------------------------------------------------
+# 1. PAINEL (KANBAN)
+# ----------------------------------------------------
+if menu == "📋 Painel (Kanban)":
+    st.subheader("Visão Geral das Cargas")
+
+    col_f1, _ = st.columns([2, 2])
+    with col_f1:
+        motoristas_filtro_opcoes = ["Todos os Motoristas"] + motoristas_lista
+        motorista_selecionado = st.selectbox("Filtrar por Motorista", motoristas_filtro_opcoes)
+
+    hoje = datetime.date.today()
+    inicio_semana_atual = hoje - datetime.timedelta(days=hoje.weekday())
+    fim_proxima_semana = inicio_semana_atual + datetime.timedelta(days=13)
+
+    cargas_filtradas_periodo = []
+    for c in cargas_lista:
+        data_str = c.get("data_saida") or c.get("data_carga")
+        if data_str:
+            try:
+                data_carga_obj = datetime.date.fromisoformat(data_str)
+                if inicio_semana_atual <= data_carga_obj <= fim_proxima_semana:
+                    cargas_filtradas_periodo.append(c)
+            except Exception:
+                cargas_filtradas_periodo.append(c)
+        else:
+            cargas_filtradas_periodo.append(c)
+
+    if motorista_selecionado != "Todos os Motoristas":
+        cargas_filtradas_periodo = [c for c in cargas_filtradas_periodo if c.get("motorista") == motorista_selecionado]
+
+    colunas_status = [
+        "Aguardando Carregamento",
+        "Carregado / No Pátio",
+        "Em Trânsito / Viagem Iniciada",
+        "Entregue / Concluído",
+    ]
+
+    paleta_cores = ["#58a6ff", "#3fb950", "#d29922", "#bc8cff", "#f85149", "#39c5bb", "#f0883e", "#db61a2"]
+    mapa_cores = {mot: paleta_cores[i % len(paleta_cores)] for i, mot in enumerate(motoristas_lista)}
+
+    cols = st.columns(len(colunas_status))
+
+    for idx, status in enumerate(colunas_status):
+        with cols[idx]:
+            st.markdown(
+                f"<div class='kanban-header'>{status}</div>",
+                unsafe_allow_html=True,
+            )
+
+            cargas_status_filtradas = [c for c in cargas_filtradas_periodo if c.get("status") == status]
+
+            for carga in cargas_status_filtradas:
+                carga_id = carga.get('id')
+                motorista_atual = carga.get('motorista', '')
+                cor_motorista = mapa_cores.get(motorista_atual, "#8b949e")
+
+                saida_br = formatar_data_br(carga.get('data_saida'))
+                entrega_br = formatar_data_br(carga.get('data_entrega'))
+
                 with st.container():
-                    st.markdown(f"**Destino:** {carga.get('destino', 'Não informado')}")
-                    st.markdown(f"**Motorista:** {carga.get('motorista', 'Não informado')}")
+                    c_info, c_edit, c_del = st.columns([5, 1, 1])
                     
-                    ajudantes_val = carga.get('ajudantes', [])
-                    if isinstance(ajudantes_val, list):
-                        ajudantes_str = ", ".join(ajudantes_val) if ajudantes_val else "Nenhum"
-                    else:
-                        ajudantes_str = str(ajudantes_val)
-                    st.markdown(f"**Ajudantes:** {ajudantes_str}")
+                    with c_info:
+                        st.markdown(f"""
+                            <div style="border-left: 4px solid {cor_motorista}; padding-left: 8px; margin-bottom: 4px;">
+                                <b style="font-size: 14px; color: #ffffff;">🚚 {motorista_atual}</b><br>
+                                <span style="font-size: 13px; color: #8b949e;">Destino:</span> <span style="color: #c9d1d9; font-weight: 500;">{carga.get('destino')}</span><br>
+                                <span style="font-size: 12px; color: #8b949e;">📅 Saída: {saida_br} | Entrega: {entrega_br}</span>
+                            </div>
+                        """, unsafe_allow_html=True)
                     
-                    if carga.get('data_carregamento'):
-                        st.markdown(f"**Carregamento:** {formatar_data_br(carga.get('data_carregamento'))}")
-                    if carga.get('data_saida'):
-                        st.markdown(f"**Saída:** {formatar_data_br(carga.get('data_saida'))}")
+                    with c_edit:
+                        if st.button("✏️", key=f"btn_edit_{carga_id}"):
+                            st.session_state[f"editando_{carga_id}"] = not st.session_state.get(f"editando_{carga_id}", False)
+                        st.markdown('<script>parent.document.querySelectorAll(\'button[key*="btn_edit"]\').forEach(el => el.classList.add("btn-kanban"));</script>', unsafe_allow_html=True)
                     
+                    with c_del:
+                        if st.button("🗑️", key=f"btn_del_{carga_id}"):
+                            deletar_documento("cargas", carga_id)
+                            st.session_state["cargas"] = [c for c in cargas_lista if c.get("id") != carga_id]
+                            st.rerun()
+                        st.markdown('<script>parent.document.querySelectorAll(\'button[key*="btn_del"]\').forEach(el => el.classList.add("btn-kanban"));</script>', unsafe_allow_html=True)
+
                     novo_status = st.selectbox(
-                        "Status", 
-                        ["Previsão de Carregamento", "Carregando", "Em Rota", "Concluído"], 
-                        index=["Previsão de Carregamento", "Carregando", "Em Rota", "Concluído"].index(status_atual) if status_atual in ["Previsão de Carregamento", "Carregando", "Em Rota", "Concluído"] else 0,
-                        key=f"status_select_{idx}"
+                        "Mover Status",
+                        colunas_status,
+                        index=colunas_status.index(status) if status in colunas_status else 0,
+                        key=f"status_{carga_id}",
                     )
-                    
-                    if novo_status != status_atual:
-                        cargas_lista[idx]["status"] = novo_status
-                        if novo_status == "Carregando" and not cargas_lista[idx].get("data_carregamento"):
-                            cargas_lista[idx]["data_carregamento"] = str(datetime.date.today())
-                        salvar_documento("cargas", carga.get("id"), cargas_lista[idx])
+                    if novo_status != carga.get("status"):
+                        carga["status"] = novo_status
+                        salvar_documento("cargas", carga_id, carga)
                         st.rerun()
 
-                    bcol1, bcol2 = st.columns(2)
-                    with bcol1:
-                        if st.button("✏️ Editar", key=f"btn_edit_{idx}"):
-                            st.session_state["editando_idx"] = idx
-                            st.rerun()
-                    with bcol2:
-                        if st.button("🗑️ Excluir", key=f"btn_del_{idx}"):
-                            deletar_documento("cargas", carga.get("id"))
-                            cargas_lista.pop(idx)
-                            st.session_state["cargas"] = cargas_lista
-                            if st.session_state["editando_idx"] == idx:
-                                st.session_state["editando_idx"] = None
-                            st.rerun()
+                    if st.session_state.get(f"editando_{carga_id}", False):
+                        with st.form(key=f"form_edit_{carga_id}"):
+                            st.markdown(f"**Editando Carga #{carga_id}**")
+                            
+                            mot_idx = motoristas_lista.index(carga.get("motorista")) if carga.get("motorista") in motoristas_lista else 0
+                            novo_mot = st.selectbox("Motorista", motoristas_lista if motoristas_lista else [""], index=mot_idx)
+                            novo_dest = st.text_input("Destino", value=carga.get("destino", ""))
+                            
+                            try:
+                                dt_saida_val = datetime.date.fromisoformat(carga.get("data_saida")) if carga.get("data_saida") else datetime.date.today()
+                            except:
+                                dt_saida_val = datetime.date.today()
+                                
+                            try:
+                                dt_ent_val = datetime.date.fromisoformat(carga.get("data_entrega")) if carga.get("data_entrega") else datetime.date.today()
+                            except:
+                                dt_ent_val = datetime.date.today()
 
-with tab2:
-    st.subheader("Cadastrar Nova Carga")
-    with st.form("form_nova_carga", clear_on_submit=True):
-        col_f1, col_f2 = st.columns(2)
-        with col_f1:
-            destino = st.text_input("Destino (Cidade / Bairro)")
-            motorista = st.selectbox("Motorista", motoristas_lista if motoristas_lista else ["Nenhum cadastrado"])
-            ajudantes_selecionados = st.multiselect("Ajudantes", ajudantes_lista)
-        with col_f2:
-            data_carregamento = st.date_input("Previsão / Data de Carregamento", value=None)
-            data_saida = st.date_input("Data de Saída", value=None)
-            
-        submitted = st.form_submit_button("Salvar Carga")
-        if submitted:
-            if not destino:
-                st.error("O destino é obrigatório!")
-            else:
+                            nova_saida = st.date_input("Data Saída", value=dt_saida_val, key=f"saida_{carga_id}")
+                            nova_entrega = st.date_input("Data Entrega", value=dt_ent_val, key=f"entrega_{carga_id}")
+
+                            col_f_salvar, _ = st.columns(2)
+                            with col_f_salvar:
+                                salvar_edicao = st.form_submit_button("💾 Salvar")
+                            
+                            if salvar_edicao:
+                                carga["motorista"] = novo_mot
+                                carga["destino"] = novo_dest
+                                carga["data_saida"] = str(nova_saida)
+                                carga["data_entrega"] = str(nova_entrega)
+                                
+                                salvar_documento("cargas", carga_id, carga)
+                                st.session_state[f"editando_{carga_id}"] = False
+                                st.success("Atualizado!")
+                                st.rerun()
+
+# ----------------------------------------------------
+# 2. NOVA CARGA
+# ----------------------------------------------------
+elif menu == "➕ Nova Carga":
+    st.subheader("Cadastrar Novo Agendamento de Carga")
+
+    with st.form("form_nova_carga"):
+        col1, col2 = st.columns(2)
+
+        with col1:
+            motorista = st.selectbox("Motorista Responsável", motoristas_lista if motoristas_lista else ["Nenhum cadastrado"])
+            destino = st.text_input("Região / Cidades de Destino", placeholder="Ex: Uberaba, Araxá (Múltiplas entregas)")
+            observacoes = st.text_area("Observações / Rota", placeholder="Ex: Carga com entregas em lojas diferentes")
+
+        with col2:
+            ajudantes = st.multiselect("Ajudantes da Viagem", ajudantes_lista)
+            data_carga = st.date_input("Data do Carregamento")
+            data_saida = st.date_input("Data de Saída")
+            data_entrega = st.date_input("Data Prevista de Entrega")
+
+        status_inicial = st.selectbox(
+            "Status Inicial",
+            [
+                "Aguardando Carregamento",
+                "Carregado / No Pátio",
+                "Em Trânsito / Viagem Iniciada",
+                "Entregue / Concluído",
+            ],
+        )
+
+        submit = st.form_submit_button("Salvar e Agendar Carga")
+
+        if submit:
+            if destino and motorista:
                 novo_id = f"carga_{int(datetime.datetime.now().timestamp())}"
-                dados_carga = {
+                nova_carga = {
                     "id": novo_id,
-                    "destino": destino,
                     "motorista": motorista,
-                    "ajudantes": ajudantes_selecionados,
-                    "data_carregamento": str(data_carregamento) if data_carregamento else "",
-                    "data_saida": str(data_saida) if data_saida else "",
-                    "status": "Previsão de Carregamento"
+                    "destino": destino,
+                    "observacoes": observacoes,
+                    "ajudantes": ajudantes,
+                    "data_carga": str(data_carga),
+                    "data_saida": str(data_saida),
+                    "data_entrega": str(data_entrega),
+                    "status": status_inicial,
                 }
-                salvar_documento("cargas", novo_id, dados_carga)
-                cargas_lista.append(dados_carga)
-                st.session_state["cargas"] = cargas_lista
-                st.success("Carga salva com sucesso no banco de dados!")
+                salvar_documento("cargas", novo_id, nova_carga)
+                st.session_state["cargas"].append(nova_carga)
+                st.success("Carga cadastrada com sucesso no banco de dados!")
+                st.rerun()
+            else:
+                st.error("Preencha o motorista e a região de destino.")
+
+# ----------------------------------------------------
+# 3. CADASTROS (EQUIPE)
+# ----------------------------------------------------
+elif menu == "👥 Cadastros (Equipe)":
+    st.subheader("Gerenciamento de Motoristas e Ajudantes")
+
+    col1, col2 = st.columns(2)
+
+    with col1:
+        st.markdown("### Motoristas")
+        with st.form("form_cad_mot", clear_on_submit=True):
+            novo_mot = st.text_input("Adicionar novo motorista")
+            cad_mot_btn = st.form_submit_button("Cadastrar Motorista")
+            if cad_mot_btn and novo_mot:
+                doc_id = f"mot_{int(datetime.datetime.now().timestamp())}"
+                dados_mot = {"id": doc_id, "nome": novo_mot}
+                salvar_documento("motoristas", doc_id, dados_mot)
+                st.session_state["motoristas"].append(dados_mot)
+                st.success(f"Motorista {novo_mot} adicionado!")
                 st.rerun()
 
-with tab3:
-    st.subheader("Gerenciamento de Cadastros (Equipe)")
-    col_c1, col_c2 = st.columns(2)
-    
-    with col_c1:
-        st.markdown("### Cadastrar Motorista")
-        with st.form("form_motorista", clear_on_submit=True):
-            nome_mot = st.text_input("Nome do Motorista")
-            submitted_mot = st.form_submit_button("Adicionar Motorista")
-            if submitted_mot:
-                if nome_mot:
-                    doc_id = f"mot_{int(datetime.datetime.now().timestamp())}"
-                    dados_mot = {"id": doc_id, "nome": nome_mot}
-                    salvar_documento("motoristas", doc_id, dados_mot)
-                    st.session_state["motoristas"].append(dados_mot)
-                    st.success(f"Motorista {nome_mot} adicionado!")
-                    st.rerun()
-        
-        st.markdown("#### Motoristas Cadastrados:")
-        for m in motoristas_lista:
-            st.text(f"• {m}")
-            
-    with col_c2:
-        st.markdown("### Cadastrar Ajudante")
-        with st.form("form_ajudante", clear_on_submit=True):
-            nome_aju = st.text_input("Nome do Ajudante")
-            submitted_aju = st.form_submit_button("Adicionar Ajudante")
-            if submitted_aju:
-                if nome_aju:
-                    doc_id = f"aju_{int(datetime.datetime.now().timestamp())}"
-                    dados_aju = {"id": doc_id, "nome": nome_aju}
-                    salvar_documento("ajudantes", doc_id, dados_aju)
-                    st.session_state["ajudantes"].append(dados_aju)
-                    st.success(f"Ajudante {nome_aju} adicionado!")
-                    st.rerun()
-                    
-        st.markdown("#### Ajudantes Cadastrados:")
-        for a in ajudantes_lista:
-            st.text(f"• {a}")
+        st.markdown("---")
+        st.write("**Motoristas Atuais:**")
+        for m_obj in st.session_state["motoristas"]:
+            m_nome = m_obj.get("nome", "")
+            m_id = m_obj.get("id", m_nome)
+            c_mot1, c_mot2 = st.columns([4, 2])
+            c_mot1.text(m_nome)
+            if c_mot2.button("Excluir", key=f"del_mot_{m_id}"):
+                deletar_documento("motoristas", m_id)
+                st.session_state["motoristas"] = [m for m in st.session_state["motoristas"] if m.get("id") != m_id]
+                st.rerun()
 
-with tab4:
-    st.subheader("Relatório Semanal e Exportação")
+    with col2:
+        st.markdown("### Ajudantes")
+        with st.form("form_cad_aju", clear_on_submit=True):
+            novo_aju = st.text_input("Adicionar novo ajudante")
+            cad_aju_btn = st.form_submit_button("Cadastrar Ajudante")
+            if cad_aju_btn and novo_aju:
+                doc_id = f"aju_{int(datetime.datetime.now().timestamp())}"
+                dados_aju = {"id": doc_id, "nome": novo_aju}
+                salvar_documento("ajudantes", doc_id, dados_aju)
+                st.session_state["ajudantes"].append(dados_aju)
+                st.success(f"Ajudante {novo_aju} adicionado!")
+                st.rerun()
+
+        st.markdown("---")
+        st.write("**Ajudantes Atuais:**")
+        for a_obj in st.session_state["ajudantes"]:
+            a_nome = a_obj.get("nome", "")
+            a_id = a_obj.get("id", a_nome)
+            c_aju1, c_aju2 = st.columns([4, 2])
+            c_aju1.text(a_nome)
+            if c_aju2.button("Excluir", key=f"del_aju_{a_id}"):
+                deletar_documento("ajudantes", a_id)
+                st.session_state["ajudantes"] = [a for a in st.session_state["ajudantes"] if a.get("id") != a_id]
+                st.rerun()
+
+# ----------------------------------------------------
+# 4. RELATÓRIO SEMANAL DE EXECUÇÃO E EXPORTAÇÃO
+# ----------------------------------------------------
+elif menu == "📊 Relatório Semanal":
+    st.subheader("Relatório de Execução Semanal")
+
     if not cargas_lista:
-        st.info("Sem dados para gerar relatório.")
+        st.info("Nenhuma carga cadastrada para gerar relatório.")
     else:
-        df_relatorio = pd.DataFrame(cargas_lista)
-        st.dataframe(df_relatorio, use_container_width=True)
-        st.download_button(
-            label="Baixar Dados em CSV",
-            data=df_relatorio.to_csv(index=False).encode('utf-8'),
-            file_name="relatorio_cargas.csv",
-            mime="text/csv",
+        df = preparar_dataframe(cargas_lista)
+
+        total_cargas = len(df)
+        cargas_entregues = len(df[df["status"] == "Entregue / Concluído"]) if "status" in df.columns else 0
+
+        col_m1, col_m2, col_m3 = st.columns(3)
+        col_m1.metric("Total de Cargas Registradas", total_cargas)
+        col_m2.metric("Cargas Concluídas", cargas_entregues)
+        col_m3.metric(
+            "Taxa de Conclusão",
+            f"{(cargas_entregues / total_cargas * 100):.1f}%" if total_cargas > 0 else "0%",
         )
+
+        st.markdown("---")
+        st.markdown("### Produtividade por Motorista")
+        if "motorista" in df.columns:
+            prod_motorista = df["motorista"].value_counts().reset_index()
+            prod_motorista.columns = ["Motorista", "Total de Viagens Atribuídas"]
+            st.dataframe(prod_motorista, use_container_width=True)
+
+        st.markdown("### Detalhamento Geral de Todas as Cargas")
+        st.dataframe(df, use_container_width=True)
+
+        st.markdown("### Exportar Relatório de Cargas")
+        
+        col_exp1, col_exp2 = st.columns(2)
+
+        with col_exp1:
+            excel_data = gerar_excel_profissional(df)
+            st.download_button(
+                label="📥 Baixar Excel (.xlsx)",
+                data=excel_data,
+                file_name='relatorio_de_cargas.xlsx',
+                mime='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+            )
+
+        with col_exp2:
+            pdf_bytes = gerar_pdf(df)
+            st.download_button(
+                label="📄 Baixar PDF",
+                data=pdf_bytes,
+                file_name='relatorio_de_cargas.pdf',
+                mime='application/pdf',
+            )
