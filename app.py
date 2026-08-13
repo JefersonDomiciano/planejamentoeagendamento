@@ -68,11 +68,16 @@ def init_firebase():
         firebase_admin.initialize_app(cred)
     return firestore.client()
 
+st.title("🚚 Painel de Controle de Cargas e Agendamentos")
+
+# Bloco de diagnóstico visual para identificar eventuais falhas de conexão ou leitura
 try:
     db = init_firebase()
     usar_firebase = True
+    st.success("✅ Conectado ao Firebase com sucesso!")
 except Exception as e:
     usar_firebase = False
+    st.warning(f"⚠️ Aviso: Rodando em modo local (Firebase indisponível: {e})")
 
 if not usar_firebase:
     if "motoristas" not in st.session_state:
@@ -227,19 +232,17 @@ def gerar_pdf(df):
 
     return bytes(pdf.output(dest='S'))
 
-st.title("🚚 Painel de Controle de Cargas e Agendamentos")
-
-if not usar_firebase:
-    st.warning("⚠️ Atenção: O arquivo de credenciais do Firebase não foi encontrado. Rodando em memória local.")
-
-motoristas_raw = carregar_dados("motoristas")
-ajudantes_raw = carregar_dados("ajudantes")
+try:
+    motoristas_raw = carregar_dados("motoristas")
+    ajudantes_raw = carregar_dados("ajudantes")
+    cargas_lista = carregar_dados("cargas")
+except Exception as e:
+    st.error(f"Erro ao buscar coleções: {e}")
+    motoristas_raw, ajudantes_raw, cargas_lista = [], [], []
 
 motoristas_lista = [m.get("nome", m) if isinstance(m, dict) else m for m in motoristas_raw if m]
 ajudantes_lista = [a.get("nome", a) if isinstance(a, dict) else a for a in ajudantes_raw if a]
-cargas_lista = carregar_dados("cargas")
 
-# Utilizando abas nativas para evitar qualquer travamento de renderização de estado
 tab1, tab2, tab3, tab4 = st.tabs([
     "📋 Painel (Kanban)", 
     "➕ Nova Carga", 
