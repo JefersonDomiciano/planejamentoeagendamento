@@ -70,7 +70,6 @@ def init_firebase():
 
 st.title("🚚 Painel de Controle de Cargas e Agendamentos")
 
-# Bloco de diagnóstico visual para identificar eventuais falhas de conexão ou leitura
 try:
     db = init_firebase()
     usar_firebase = True
@@ -233,15 +232,15 @@ def gerar_pdf(df):
     return bytes(pdf.output(dest='S'))
 
 try:
-    motoristas_raw = carregar_dados("motoristas")
-    ajudantes_raw = carregar_dados("ajudantes")
-    cargas_lista = carregar_dados("cargas")
+    motoristas_raw = carregar_dados("motoristas") or []
+    ajudantes_raw = carregar_dados("ajudantes") or []
+    cargas_lista = carregar_dados("cargas") or []
 except Exception as e:
     st.error(f"Erro ao buscar coleções: {e}")
     motoristas_raw, ajudantes_raw, cargas_lista = [], [], []
 
-motoristas_lista = [m.get("nome", m) if isinstance(m, dict) else m for m in motoristas_raw if m]
-ajudantes_lista = [a.get("nome", a) if isinstance(a, dict) else a for a in ajudantes_raw if a]
+motoristas_lista = [m.get("nome", str(m)) for m in motoristas_raw if m] if isinstance(motoristas_raw, list) else []
+ajudantes_lista = [a.get("nome", str(a)) for a in ajudantes_raw if a] if isinstance(ajudantes_raw, list) else []
 
 tab1, tab2, tab3, tab4 = st.tabs([
     "📋 Painel (Kanban)", 
