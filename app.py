@@ -379,10 +379,13 @@ if menu == "📋 Painel (Kanban)":
                                 st.rerun()
 
 # ----------------------------------------------------
-# 2. NOVA CARGA
+# 2. NOVA CARGA (COM CORREÇÃO DE ID E VALIDAÇÃO)
 # ----------------------------------------------------
 elif menu == "➕ Nova Carga":
     st.subheader("Cadastrar Novo Agendamento de Carga")
+
+    if not motoristas_lista:
+        st.warning("⚠️ Você precisa cadastrar ao menos um motorista na aba **Cadastros (Equipe)** antes de agendar uma carga.")
 
     with st.form("form_nova_carga"):
         col1, col2 = st.columns(2)
@@ -411,8 +414,17 @@ elif menu == "➕ Nova Carga":
         submit = st.form_submit_button("Salvar e Agendar Carga")
 
         if submit:
-            if destino and motorista:
-                novo_id = max([c.get("id", 0) for c in cargas_lista], default=0) + 1
+            if destino and motorista and motorista != "Nenhum cadastrado":
+                # Tratamento robusto para extrair o maior ID numérico atual sem erros
+                ids_existentes = []
+                for c in cargas_lista:
+                    try:
+                        ids_existentes.append(int(c.get("id", 0)))
+                    except:
+                        pass
+                
+                novo_id = max(ids_existentes, default=0) + 1
+                
                 nova_carga = {
                     "id": novo_id,
                     "motorista": motorista,
@@ -425,10 +437,10 @@ elif menu == "➕ Nova Carga":
                     "status": status_inicial,
                 }
                 adicionar_dado("cargas", nova_carga, doc_id=novo_id)
-                st.success("Carga cadastrada com sucesso!")
+                st.success(f"Carga #{novo_id} cadastrada com sucesso!")
                 st.rerun()
             else:
-                st.error("Preencha o motorista e a região de destino.")
+                st.error("Preencha o destino e certifique-se de que há um motorista válido selecionado.")
 
 # ----------------------------------------------------
 # 3. CADASTROS (EQUIPE)
