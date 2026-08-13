@@ -57,6 +57,30 @@ st.markdown(
             font-size: 12px !important;
             color: #8b949e !important;
         }
+
+        /* Estilo Profissional para os Cards do Dashboard */
+        .kpi-card {
+            background: linear-gradient(135deg, #161b22 0%, #0d1117 100%);
+            border: 1px solid #30363d;
+            border-radius: 10px;
+            padding: 20px;
+            text-align: center;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.3);
+            margin-bottom: 15px;
+        }
+        .kpi-title {
+            color: #8b949e;
+            font-size: 13px;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 0.8px;
+            margin-bottom: 8px;
+        }
+        .kpi-value {
+            color: #ffffff;
+            font-size: 28px;
+            font-weight: 700;
+        }
     </style>
 """,
     unsafe_allow_html=True,
@@ -140,7 +164,8 @@ menu = st.radio(
         "📋 Painel (Kanban)",
         "➕ Nova Carga",
         "👥 Cadastros (Equipe)",
-        "📊 Dashboard e Relatório",
+        "📊 Dashboard",
+        "📈 Relatórios",
     ],
     horizontal=True,
 )
@@ -348,7 +373,6 @@ if menu == "📋 Painel (Kanban)":
                     
                     if novo_status != carga.get("status"):
                         carga["status"] = novo_status
-                        # Se mudar para Entregue e data de entrega estiver vazia, preencher automaticamente com hoje
                         if novo_status == "Entregue / Concluído" and not carga.get("data_entrega"):
                             carga["data_entrega"] = str(datetime.date.today())
                         
@@ -514,80 +538,93 @@ elif menu == "👥 Cadastros (Equipe)":
                 st.rerun()
 
 # ----------------------------------------------------
-# 4. DASHBOARD E RELATÓRIO SEMANAL
+# 4. DASHBOARD (PROFISSIONAL COM HTML/CSS)
 # ----------------------------------------------------
-elif menu == "📊 Dashboard e Relatório":
-    st.subheader("📊 Dashboard Dinâmico e Indicadores")
+elif menu == "📊 Dashboard":
+    st.subheader("📊 Dashboard Executivo de Operações")
 
     if not cargas_lista:
         st.info("Nenhuma carga cadastrada para exibir o dashboard.")
     else:
-        df_raw = pd.DataFrame(cargas_lista)
+        df_db = pd.DataFrame(cargas_lista)
         
-        # Filtros de data para o dashboard
-        col_df1, col_df2 = st.columns(2)
-        with col_df1:
-            db_inicio = st.date_input("Filtrar Dashboard a partir de", value=datetime.date.today() - datetime.timedelta(days=30), key="db_ini")
-        with col_df2:
-            db_fim = st.date_input("Até a data", value=datetime.date.today() + datetime.timedelta(days=30), key="db_fim")
+        total_cargas = len(df_db)
+        cargas_entregues = len(df_db[df_db["status"] == "Entregue / Concluído"]) if "status" in df_db.columns else 0
+        cargas_transito = len(df_db[df_db["status"].str.contains("Trânsito|Pátio|Aguardando", na=False)]) if "status" in df_db.columns else 0
+        taxa_conclusao = (cargas_entregues / total_cargas * 100) if total_cargas > 0 else 0
 
-        # Filtrar DataFrame base nas datas
-        cargas_filtradas_db = []
-        for c in cargas_lista:
-            dt_s = c.get("data_saida") or c.get("data_carga")
-            if dt_s:
-                try:
-                    dt_obj = datetime.date.fromisoformat(str(dt_s).split("T")[0])
-                    if db_inicio <= dt_obj <= db_fim:
-                        cargas_filtradas_db.append(c)
-                except:
-                    cargas_filtradas_db.append(c)
-            else:
-                cargas_filtradas_db.append(c)
-
-        df_db = pd.DataFrame(cargas_filtradas_db)
-
-        if df_db.empty:
-            st.warning("Nenhuma carga encontrada no período selecionado para o dashboard.")
-        else:
-            total_cargas = len(df_db)
-            cargas_entregues = len(df_db[df_db["status"] == "Entregue / Concluído"]) if "status" in df_db.columns else 0
-            cargas_transito = len(df_db[df_db["status"].str.contains("Trânsito|Pátio|Aguardando", na=False)]) if "status" in df_db.columns else 0
-
-            m1, m2, m3, m4 = st.columns(4)
-            m1.metric("📦 Cargas no Período", total_cargas)
-            m2.metric("✅ Concluídas", cargas_entregues)
-            m3.metric("🚚 Em Andamento", cargas_transito)
-            m4.metric("📈 Taxa de Conclusão", f"{(cargas_entregues / total_cargas * 100):.1f}%" if total_cargas > 0 else "0%")
-
-            st.markdown("---")
+        # Cards HTML personalizados
+        c1, c2, c3, c4 = st.columns(4)
+        
+        with c1:
+            st.markdown(f"""
+                <div class="kpi-card">
+                    <div class="kpi-title">📦 Total de Cargas</div>
+                    <div class="kpi-value">{total_cargas}</div>
+                </div>
+            """, unsafe_allow_html=True)
             
-            col_g1, col_g2 = st.columns(2)
-
-            with col_g1:
-                st.markdown("### 📊 Status das Cargas")
-                if "status" in df_db.columns:
-                    status_counts = df_db["status"].value_counts()
-                    st.bar_chart(status_counts)
-
-            with col_g2:
-                st.markdown("### 🚚 Produtividade por Motorista")
-                if "motorista" in df_db.columns:
-                    mot_counts = df_db["motorista"].value_counts()
-                    st.bar_chart(mot_counts)
+        with c2:
+            st.markdown(f"""
+                <div class="kpi-card">
+                    <div class="kpi-title">✅ Concluídas</div>
+                    <div class="kpi-value" style="color: #3fb950;">{cargas_entregues}</div>
+                </div>
+            """, unsafe_allow_html=True)
+            
+        with c3:
+            st.markdown(f"""
+                <div class="kpi-card">
+                    <div class="kpi-title">🚚 Em Andamento</div>
+                    <div class="kpi-value" style="color: #d29922;">{cargas_transito}</div>
+                </div>
+            """, unsafe_allow_html=True)
+            
+        with c4:
+            st.markdown(f"""
+                <div class="kpi-card">
+                    <div class="kpi-title">📈 Taxa de Sucesso</div>
+                    <div class="kpi-value" style="color: #58a6ff;">{taxa_conclusao:.1f}%</div>
+                </div>
+            """, unsafe_allow_html=True)
 
         st.markdown("---")
-        st.subheader("📋 Detalhamento Geral de Todas as Cargas")
+        
+        col_g1, col_g2 = st.columns(2)
+
+        with col_g1:
+            st.markdown("### 📊 Distribuição por Status")
+            if "status" in df_db.columns:
+                status_counts = df_db["status"].value_counts()
+                st.bar_chart(status_counts)
+
+        with col_g2:
+            st.markdown("### 🚚 Produtividade por Motorista")
+            if "motorista" in df_db.columns:
+                mot_counts = df_db["motorista"].value_counts()
+                st.bar_chart(mot_counts)
+
+# ----------------------------------------------------
+# 5. RELATÓRIOS (EXPORTAÇÃO E TABELAS)
+# ----------------------------------------------------
+elif menu == "📈 Relatórios":
+    st.subheader("📈 Relatórios e Exportação de Dados")
+
+    if not cargas_lista:
+        st.info("Nenhuma carga cadastrada para gerar relatórios.")
+    else:
         df_tabela = preparar_dataframe(cargas_lista)
+
+        st.markdown("### 📋 Detalhamento Geral de Todas as Cargas")
         st.dataframe(df_tabela, use_container_width=True)
 
-        st.markdown("### Exportar Relatório de Cargas")
+        st.markdown("### Exportar Arquivos")
         col_exp1, col_exp2 = st.columns(2)
 
         with col_exp1:
             excel_data = gerar_excel_profissional(df_tabela)
             st.download_button(
-                label="📥 Baixar Excel (.xlsx)",
+                label="📥 Baixar Planilha Excel (.xlsx)",
                 data=excel_data,
                 file_name='relatorio_de_cargas.xlsx',
                 mime='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
@@ -596,7 +633,7 @@ elif menu == "📊 Dashboard e Relatório":
         with col_exp2:
             pdf_bytes = gerar_pdf(df_tabela)
             st.download_button(
-                label="📄 Baixar PDF",
+                label="📄 Baixar Relatório em PDF",
                 data=pdf_bytes,
                 file_name='relatorio_de_cargas.pdf',
                 mime='application/pdf',
