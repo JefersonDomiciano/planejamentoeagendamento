@@ -84,8 +84,8 @@ def init_firebase():
             cred = credentials.Certificate(cred_dict)
             firebase_admin.initialize_app(cred)
         else:
-            # Conexão utilizando o arquivo correto firebase_key.json
-            cred = credentials.Certificate("firebase_key.json")
+            # Aponta para o arquivo serviceAccountKey.json que está visível no seu repositório
+            cred = credentials.Certificate("serviceAccountKey.json")
             firebase_admin.initialize_app(cred)
     return firestore.client()
 
@@ -257,7 +257,7 @@ def gerar_pdf(df):
 st.title("🚚 Painel de Controle de Cargas e Agendamentos")
 
 if not usar_firebase:
-    st.warning("⚠️ Atenção: O arquivo de credenciais do Firebase (`firebase_key.json`) não foi encontrado. Rodando em memória local.")
+    st.warning("⚠️ Atenção: O arquivo de credenciais do Firebase (`serviceAccountKey.json`) não foi encontrado[cite: 1]. Rodando em memória local.")
 
 menu = st.radio(
     "Menu Principal",
