@@ -279,22 +279,8 @@ if menu == "📋 Painel (Kanban)":
         motoristas_filtro_opcoes = ["Todos os Motoristas"] + motoristas_lista
         motorista_selecionado = st.selectbox("Filtrar por Motorista", motoristas_filtro_opcoes)
 
-    hoje = datetime.date.today()
-    inicio_semana_atual = hoje - datetime.timedelta(days=hoje.weekday())
-    fim_proxima_semana = inicio_semana_atual + datetime.timedelta(days=13)
-
-    cargas_filtradas_periodo = []
-    for c in cargas_lista:
-        data_str = c.get("data_saida") or c.get("data_carga")
-        if data_str:
-            try:
-                data_carga_obj = datetime.date.fromisoformat(data_str)
-                if inicio_semana_atual <= data_carga_obj <= fim_proxima_semana:
-                    cargas_filtradas_periodo.append(c)
-            except Exception:
-                cargas_filtradas_periodo.append(c)
-        else:
-            cargas_filtradas_periodo.append(c)
+    # Exibe todas as cargas cadastradas independentemente da data
+    cargas_filtradas_periodo = cargas_lista
 
     if motorista_selecionado != "Todos os Motoristas":
         cargas_filtradas_periodo = [c for c in cargas_filtradas_periodo if c.get("motorista") == motorista_selecionado]
