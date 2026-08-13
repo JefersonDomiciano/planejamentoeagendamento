@@ -61,21 +61,28 @@ st.markdown(
     unsafe_allow_html=True,
 )
 
-# Inicialização do Firebase Firestore
+# Inicialização Robusta do Firebase Firestore
 @st.cache_resource
 def conectar_firebase():
     try:
-        if not firebase_admin._apps:
-            if "firebase" in st.secrets:
-                cred_dict = dict(st.secrets["firebase"])
-                if "private_key" in cred_dict:
-                    cred_dict["private_key"] = cred_dict["private_key"].replace("\\n", "\n")
-                cred = credentials.Certificate(cred_dict)
-                firebase_admin.initialize_app(cred)
-        return firestore.client()
+        if firebase_admin._apps:
+            for app in list(firebase_admin._apps.values()):
+                firebase_admin.delete_app(app)
+                
+        if "firebase" in st.secrets:
+            cred_dict = dict(st.secrets["firebase"])
+            if "private_key" in cred_dict:
+                pk = str(cred_dict["private_key"])
+                pk = pk.replace("\\n", "\n")
+                cred_dict["private_key"] = pk
+
+            cred = credentials.Certificate(cred_dict)
+            app = firebase_admin.initialize_app(cred)
+            return firestore.client(app=app)
     except Exception as e:
-        st.error(f"Erro ao conectar no Firebase: {e}")
+        print(f"Erro detalhado Firebase: {e}")
         return None
+    return None
 
 db = conectar_firebase()
 
@@ -119,7 +126,6 @@ def excluir_item_firebase(colecao, doc_id):
     return False
 
 def adicionar_dado(colecao, novo_item, campo_id="id"):
-    # Se for motorista/ajudante, usamos o próprio nome como ID para evitar duplicatas
     if colecao in ["motoristas", "ajudantes"]:
         doc_id = novo_item.get("nome")
         novo_item["id"] = doc_id
