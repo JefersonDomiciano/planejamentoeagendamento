@@ -60,7 +60,8 @@ st.markdown(
 
 st.title("🚚 Painel de Controle de Cargas e Agendamentos")
 
-# Conexão executada apenas sob demanda e com tratamento leve
+# Inicialização isolada do Firebase
+@st.cache_resource
 def obter_conexao():
     try:
         if not firebase_admin._apps:
@@ -74,44 +75,56 @@ def obter_conexao():
     except Exception:
         return None
 
-# Funções protegidas que não travam o app se a rede falhar
-@st.cache_data(ttl=30)
-def carregar_dados_cache(colecao):
+# Funções protegidas com timeout simulado / tratamento seco para não travar
+def buscar_colecao(colecao):
     db = obter_conexao()
     if db is None:
         return []
     try:
-        docs = db.collection(colecao).stream()
+        docs = db.collection(colecao).get()
         return [doc.to_dict() for doc in docs]
     except Exception:
         return []
 
-def salvar_dado_firebase(colecao, dados, doc_id):
+def salvar_no_firebase(colecao, dados, doc_id):
     db = obter_conexao()
     if db is None:
         st.error("Erro: Banco de dados desconectado.")
         return
     try:
         db.collection(colecao).document(str(doc_id)).set(dados)
-        st.cache_data.clear()
     except Exception as e:
         st.error(f"Erro ao salvar: {e}")
 
-# Carregamento rápido em segundo plano
-motoristas_raw = carregar_dados_cache("motoristas")
-ajudantes_raw = carregar_dados_cache("ajudantes")
-cargas_lista = carregar_dados_cache("cargas")
+# Inicializa dados vazios na sessão para carregar instantaneamente sem bloqueio
+if "cargas" not in st.session_state:
+    st.session_state["cargas"] = []
+if "motoristas" not in st.session_state:
+    st.session_state["motoristas"] = []
+if "ajudantes" not in st.session_state:
+    st.session_state["ajudantes"] = []
 
-motoristas_lista = [m.get("nome", "") for m in motoristas_raw]
-ajudantes_lista = [a.get("nome", "") for a in ajudantes_raw]
+col_top1, col_top2 = st.columns([0.8, 0.2])
+with col_top2:
+    if st.button("🔄 Sincronizar Dados"):
+        with st.spinner("Buscando dados..."):
+            st.session_state["cargas"] = buscar_colecao("cargas")
+            st.session_state["motoristas"] = buscar_colecao("motoristas")
+            st.session_state["ajudantes"] = buscar_colecao("ajudantes")
+        st.success("Sincronizado!")
+        st.rerun()
 
-# Criação das Abas do Painel (Abrirem instantaneamente)
+cargas_lista = st.session_state["cargas"]
+motoristas_lista = [m.get("nome", "") for m in st.session_state["motoristas"]]
+ajudantes_lista = [a.get("nome", "") for a in st.session_state["ajudantes"]]
+
+# Abas do Painel
 tab1, tab2, tab3, tab4 = st.tabs(["📋 Painel (Kanban)", "➕ Nova Carga", "👥 Cadastros (Equipe)", "📊 Relatório Semanal"])
 
 with tab1:
     st.subheader("Visão Geral das Cargas")
     if not cargas_lista:
-        st.info("Nenhuma carga encontrada ou banco carregando. Se persistir, verifique a variável FIREBASE_CREDENTIALS_JSON no Render.")
+        st.info("Clique no botão '🔄 Sincronizar Dados' no canto superior direito para carregar as informações.")
     else:
         col_k1, col_k2, col_k3, col_k4 = st.columns(4)
         
@@ -147,7 +160,7 @@ with tab1:
                     
                     if novo_status != status_atual:
                         carga["status"] = novo_status
-                        salvar_dado_firebase("cargas", carga, carga.get("id"))
+                        salvar_no_firebase("cargas", carga, carga.get("id"))
                         st.rerun()
 
 with tab2:
@@ -156,7 +169,7 @@ with tab2:
         col_f1, col_f2 = st.columns(2)
         with col_f1:
             carga_id = st.text_input("ID / Número do Pedido ou Carga")
-            motorista = st.selectbox("Motorista", motoristas_lista if motoristas_lista else ["Nenhum cadastrado"])
+            motorista = st.selectbox("Motorista", motoristas_lista if motoristas_lista else ["Nenhum cadastrado (Sincronize)"])
             destino = st.text_input("Destino (Cidade / Bairro)")
         with col_f2:
             ajudantes_selecionados = st.multiselect("Ajudantes", ajudantes_lista)
@@ -177,9 +190,8 @@ with tab2:
                     "data_entrega": str(data_entrega),
                     "status": "Pendente"
                 }
-                salvar_dado_firebase("cargas", dados_carga, carga_id)
+                salvar_no_firebase("cargas", dados_carga, carga_id)
                 st.success(f"Carga {carga_id} salva com sucesso!")
-                st.rerun()
 
 with tab3:
     st.subheader("Gerenciamento de Cadastros (Equipe)")
@@ -191,11 +203,10 @@ with tab3:
             nome_mot = st.text_input("Nome do Motorista")
             if st.form_submit_button("Adicionar Motorista"):
                 if nome_mot:
-                    salvar_dado_firebase("motoristas", {"nome": nome_mot}, nome_mot)
+                    salvar_no_firebase("motoristas", {"nome": nome_mot}, nome_mot)
                     st.success(f"Motorista {nome_mot} adicionado!")
-                    st.rerun()
         
-        st.markdown("#### Motoristas Cadastrados:")
+        st.markdown("#### Motoristas Carregados:")
         for m in motoristas_lista:
             st.text(f"• {m}")
             
@@ -205,18 +216,17 @@ with tab3:
             nome_aju = st.text_input("Nome do Ajudante")
             if st.form_submit_button("Adicionar Ajudante"):
                 if nome_aju:
-                    salvar_dado_firebase("ajudantes", {"nome": nome_aju}, nome_aju)
+                    salvar_no_firebase("ajudantes", {"nome": nome_aju}, nome_aju)
                     st.success(f"Ajudante {nome_aju} adicionado!")
-                    st.rerun()
                     
-        st.markdown("#### Ajudantes Cadastrados:")
+        st.markdown("#### Ajudantes Carregados:")
         for a in ajudantes_lista:
             st.text(f"• {a}")
 
 with tab4:
     st.subheader("Relatório Semanal e Exportação")
     if not cargas_lista:
-        st.info("Sem dados para gerar relatório.")
+        st.info("Sincronize os dados para gerar o relatório.")
     else:
         df_relatorio = pd.DataFrame(cargas_lista)
         st.dataframe(df_relatorio, use_container_width=True)
