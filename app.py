@@ -94,7 +94,6 @@ cargas_lista = db.get("cargas", [])
 motoristas_lista = [m.get("nome", "") for m in db.get("motoristas", [])]
 ajudantes_lista = [a.get("nome", "") for a in db.get("ajudantes", [])]
 
-# Controle de edição na sessão
 if "editando_idx" not in st.session_state:
     st.session_state["editando_idx"] = None
 
@@ -103,7 +102,6 @@ tab1, tab2, tab3, tab4 = st.tabs(["📋 Painel (Kanban)", "➕ Nova Carga", "�
 with tab1:
     st.subheader("Visão Geral das Cargas")
     
-    # Seção de Edição de Carga (caso o usuário clique em Editar)
     if st.session_state["editando_idx"] is not None:
         idx_edit = st.session_state["editando_idx"]
         if idx_edit < len(cargas_lista):
@@ -118,18 +116,20 @@ with tab1:
                     idx_mot = motoristas_lista.index(carga_edit.get("motorista")) if carga_edit.get("motorista") in motoristas_lista else 0
                     novo_motorista = st.selectbox("Motorista", motoristas_lista if motoristas_lista else ["Nenhum cadastrado"], index=idx_mot)
                     
-                    # Ajudantes salvos anteriormente (pode ser string ou lista)
                     ajudantes_atuais = carga_edit.get("ajudantes", [])
                     if isinstance(ajudantes_atuais, str):
                         ajudantes_atuais = [a.strip() for a in ajudantes_atuais.split(",") if a.strip()]
                     novos_ajudantes = st.multiselect("Ajudantes", ajudantes_lista, default=[a for a in ajudantes_atuais if a in ajudantes_lista])
                 
                 with col_e2:
-                    dt_car = datetime.datetime.strptime(carga_edit.get("data_carregamento", str(datetime.date.today())), "%Y-%m-%d").date() if carga_edit.get("data_carregamento") else datetime.date.today()
-                    dt_said = datetime.datetime.strptime(carga_edit.get("data_saida", str(datetime.date.today())), "%Y-%m-%d").date() if carga_edit.get("data_saida") else datetime.date.today()
+                    dt_car_val = datetime.datetime.strptime(carga_edit.get("data_carregamento"), "%Y-%m-%d").date() if carga_edit.get("data_carregamento") else None
+                    dt_said_val = datetime.datetime.strptime(carga_edit.get("data_saida"), "%Y-%m-%d").date() if carga_edit.get("data_saida") else None
                     
-                    nova_data_carregamento = st.date_input("Data do Carregamento Real", value=dt_car)
-                    nova_data_saida = st.date_input("Data de Saída", value=dt_said)
+                    nova_data_carregamento = st.date_input("Previsão / Data de Carregamento", value=dt_car_val if dt_car_val else datetime.date.today(), help="Deixe a data desejada")
+                    usar_carregamento = st.checkbox("Incluir Data de Carregamento", value=True if carga_edit.get("data_carregamento") else False)
+
+                    nova_data_saida = st.date_input("Data de Saída", value=dt_said_val if dt_said_val else datetime.date.today())
+                    usar_saida = st.checkbox("Incluir Data de Saída", value=True if carga_edit.get("data_saida") else False)
                     
                     status_opcoes = ["Previsão de Carregamento", "Carregando", "Em Rota", "Concluído"]
                     st_atual = carga_edit.get("status", "Previsão de Carregamento")
@@ -147,8 +147,8 @@ with tab1:
                         "destino": novo_destino,
                         "motorista": novo_motorista,
                         "ajudantes": novos_ajudantes,
-                        "data_carregamento": str(nova_data_carregamento),
-                        "data_saida": str(nova_data_saida),
+                        "data_carregamento": str(nova_data_carregamento) if usar_carregamento else "",
+                        "data_saida": str(nova_data_saida) if usar_saida else "",
                         "status": novo_status
                     })
                     db["cargas"] = cargas_lista
@@ -197,7 +197,8 @@ with tab1:
                     
                     if carga.get('data_carregamento'):
                         st.markdown(f"**Carregamento:** {formatar_data_br(carga.get('data_carregamento'))}")
-                    st.markdown(f"**Saída:** {formatar_data_br(carga.get('data_saida'))}")
+                    if carga.get('data_saida'):
+                        st.markdown(f"**Saída:** {formatar_data_br(carga.get('data_saida'))}")
                     
                     novo_status = st.selectbox(
                         "Status", 
@@ -208,14 +209,12 @@ with tab1:
                     
                     if novo_status != status_atual:
                         cargas_lista[idx]["status"] = novo_status
-                        # Se mudou para carregando e não tinha data de carregamento, preenche com hoje
                         if novo_status == "Carregando" and not cargas_lista[idx].get("data_carregamento"):
                             cargas_lista[idx]["data_carregamento"] = str(datetime.date.today())
                         db["cargas"] = cargas_lista
                         salvar_dados_locais(db)
                         st.rerun()
 
-                    # Botões de Editar e Excluir no Cartão
                     bcol1, bcol2 = st.columns(2)
                     with bcol1:
                         if st.button("✏️ Editar", key=f"btn_edit_{idx}"):
@@ -239,10 +238,8 @@ with tab2:
             motorista = st.selectbox("Motorista", motoristas_lista if motoristas_lista else ["Nenhum cadastrado"])
             ajudantes_selecionados = st.multiselect("Ajudantes", ajudantes_lista)
         with col_f2:
-            # Data de carregamento opcional na criação (inicializada vazia ou hoje)
-            informar_carregamento = st.checkbox("Definir data de carregamento agora")
-            data_carregamento = st.date_input("Data do Carregamento", datetime.date.today()) if informar_carregamento else None
-            data_saida = st.date_input("Data de Saída", datetime.date.today())
+            data_carregamento = st.date_input("Previsão / Data de Carregamento", value=None)
+            data_saida = st.date_input("Data de Saída", value=None)
             
         submitted = st.form_submit_button("Salvar Carga")
         if submitted:
@@ -254,8 +251,8 @@ with tab2:
                     "destino": destino,
                     "motorista": motorista,
                     "ajudantes": ajudantes_selecionados,
-                    "data_carregamento": str(data_carregamento) if informar_carregamento else "",
-                    "data_saida": str(data_saida),
+                    "data_carregamento": str(data_carregamento) if data_carregamento else "",
+                    "data_saida": str(data_saida) if data_saida else "",
                     "status": "Previsão de Carregamento"
                 }
                 db["cargas"].append(dados_carga)
