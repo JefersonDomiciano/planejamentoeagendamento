@@ -86,6 +86,8 @@ try:
     usar_firebase = True
 except Exception as e:
     usar_firebase = False
+
+if not usar_firebase:
     if "motoristas" not in st.session_state:
         st.session_state.motoristas = ["Carlos Silva", "João Pereira", "Maurício", "Cícero Taveira"]
     if "ajudantes" not in st.session_state:
@@ -95,14 +97,20 @@ except Exception as e:
 
 def carregar_dados(colecao):
     if usar_firebase:
-        docs = db.collection(colecao).stream()
-        return [doc.to_dict() for doc in docs]
+        try:
+            docs = db.collection(colecao).stream()
+            return [doc.to_dict() for doc in docs]
+        except Exception:
+            return []
     else:
         return st.session_state.get(colecao, [])
 
 def salvar_dado(colecao, dados, doc_id):
     if usar_firebase:
-        db.collection(colecao).document(str(doc_id)).set(dados)
+        try:
+            db.collection(colecao).document(str(doc_id)).set(dados)
+        except Exception as e:
+            st.error(f"Erro ao salvar no Firebase: {e}")
     else:
         if colecao == "cargas":
             encontrado = False
@@ -116,10 +124,13 @@ def salvar_dado(colecao, dados, doc_id):
 
 def adicionar_dado(colecao, dados, doc_id=None):
     if usar_firebase:
-        if doc_id:
-            db.collection(colecao).document(str(doc_id)).set(dados)
-        else:
-            db.collection(colecao).add(dados)
+        try:
+            if doc_id:
+                db.collection(colecao).document(str(doc_id)).set(dados)
+            else:
+                db.collection(colecao).add(dados)
+        except Exception as e:
+            st.error(f"Erro ao adicionar no Firebase: {e}")
     else:
         st.session_state[colecao].append(dados)
 
@@ -238,7 +249,7 @@ def gerar_pdf(df):
 st.title("🚚 Painel de Controle de Cargas e Agendamentos")
 
 if not usar_firebase:
-    st.warning("⚠️ Atenção: O arquivo de credenciais do Firebase (`serviceAccountKey.json`) não foi encontrado. Rodando em memória local.")
+    st.warning("⚠️ Atenção: O arquivo de credenciais do Firebase (`serviceAccountKey.json`) não foi encontrado ou falhou. Rodando em memória local.")
 
 menu = st.radio(
     "Menu Principal",
@@ -325,7 +336,10 @@ if menu == "📋 Painel (Kanban)":
                     with c_del:
                         if st.button("🗑️", key=f"btn_del_{carga_id}", help="Excluir"):
                             if usar_firebase:
-                                db.collection("cargas").document(str(carga_id)).delete()
+                                try:
+                                    db.collection("cargas").document(str(carga_id)).delete()
+                                except:
+                                    pass
                             else:
                                 st.session_state.cargas = [c for c in st.session_state.cargas if c["id"] != carga_id]
                             st.rerun()
@@ -333,13 +347,16 @@ if menu == "📋 Painel (Kanban)":
                     novo_status = st.selectbox(
                         "Mover Status",
                         colunas_status,
-                        index=colunas_status.index(status),
+                        index=colunas_status.index(status) if status in colunas_status else 0,
                         key=f"status_{carga_id}",
                     )
                     if novo_status != carga.get("status"):
                         carga["status"] = novo_status
                         if usar_firebase:
-                            db.collection("cargas").document(str(carga_id)).update({"status": novo_status})
+                            try:
+                                db.collection("cargas").document(str(carga_id)).update({"status": novo_status})
+                            except:
+                                pass
                         st.rerun()
 
                     if st.session_state.get(f"editando_{carga_id}", False):
@@ -379,7 +396,7 @@ if menu == "📋 Painel (Kanban)":
                                 st.rerun()
 
 # ----------------------------------------------------
-# 2. NOVA CARGA (FLEXÍVEL: SELECIONA OU DIGITA)
+# 2. NOVA CARGA
 # ----------------------------------------------------
 elif menu == "➕ Nova Carga":
     st.subheader("Cadastrar Novo Agendamento de Carga")
@@ -416,7 +433,6 @@ elif menu == "➕ Nova Carga":
 
         if submit:
             if destino and motorista:
-                # Se digitou um motorista novo que não estava na lista, cadastra automaticamente na coleção
                 if not motoristas_lista or motorista not in motoristas_lista:
                     adicionar_dado("motoristas", {"nome": motorista})
 
@@ -470,8 +486,11 @@ elif menu == "👥 Cadastros (Equipe)":
             c_mot1.text(m)
             if c_mot2.button("Excluir", key=f"del_mot_{m}"):
                 if usar_firebase:
-                    docs = db.collection("motoristas").where("nome", "==", m).stream()
-                    for d in docs: d.reference.delete()
+                    try:
+                        docs = db.collection("motoristas").where("nome", "==", m).stream()
+                        for d in docs: d.reference.delete()
+                    except:
+                        pass
                 else:
                     st.session_state.motoristas = [item for item in st.session_state.motoristas if item != m]
                 st.rerun()
@@ -492,8 +511,11 @@ elif menu == "👥 Cadastros (Equipe)":
             c_aju1.text(a)
             if c_aju2.button("Excluir", key=f"del_aju_{a}"):
                 if usar_firebase:
-                    docs = db.collection("ajudantes").where("nome", "==", a).stream()
-                    for d in docs: d.reference.delete()
+                    try:
+                        docs = db.collection("ajudantes").where("nome", "==", a).stream()
+                        for d in docs: d.reference.delete()
+                    except:
+                        pass
                 else:
                     st.session_state.ajudantes = [item for item in st.session_state.ajudantes if item != a]
                 st.rerun()
