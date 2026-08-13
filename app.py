@@ -60,9 +60,8 @@ st.markdown(
 
 st.title("🚚 Painel de Controle de Cargas e Agendamentos")
 
-# Inicialização segura do Firebase utilizando variáveis de ambiente (Render) ou arquivo local
-@st.cache_resource
-def conectar_firebase():
+# Conexão executada apenas sob demanda e com tratamento leve
+def obter_conexao():
     try:
         if not firebase_admin._apps:
             if "FIREBASE_CREDENTIALS_JSON" in os.environ:
@@ -72,17 +71,13 @@ def conectar_firebase():
                 cred = credentials.Certificate("serviceAccountKey.json")
             firebase_admin.initialize_app(cred)
         return firestore.client()
-    except Exception as e:
-        st.error(f"Não foi possível conectar ao Firebase. Detalhes: {e}")
+    except Exception:
         return None
 
-db = conectar_firebase()
-
-if db is None:
-    st.error("⚠️ Erro crítico: Não foi possível autenticar no Firebase. Configure a variável de ambiente 'FIREBASE_CREDENTIALS_JSON' no Render.")
-
-# Funções de banco de dados protegidas
-def carregar_dados_seguro(colecao):
+# Funções protegidas que não travam o app se a rede falhar
+@st.cache_data(ttl=30)
+def carregar_dados_cache(colecao):
+    db = obter_conexao()
     if db is None:
         return []
     try:
@@ -91,29 +86,32 @@ def carregar_dados_seguro(colecao):
     except Exception:
         return []
 
-def salvar_dado_seguro(colecao, dados, doc_id):
+def salvar_dado_firebase(colecao, dados, doc_id):
+    db = obter_conexao()
     if db is None:
+        st.error("Erro: Banco de dados desconectado.")
         return
     try:
         db.collection(colecao).document(str(doc_id)).set(dados)
+        st.cache_data.clear()
     except Exception as e:
         st.error(f"Erro ao salvar: {e}")
 
-# Carregamento das listas
-motoristas_raw = carregar_dados_seguro("motoristas")
-ajudantes_raw = carregar_dados_seguro("ajudantes")
-cargas_lista = carregar_dados_seguro("cargas")
+# Carregamento rápido em segundo plano
+motoristas_raw = carregar_dados_cache("motoristas")
+ajudantes_raw = carregar_dados_cache("ajudantes")
+cargas_lista = carregar_dados_cache("cargas")
 
 motoristas_lista = [m.get("nome", "") for m in motoristas_raw]
 ajudantes_lista = [a.get("nome", "") for a in ajudantes_raw]
 
-# Criação das Abas do Painel
+# Criação das Abas do Painel (Abrirem instantaneamente)
 tab1, tab2, tab3, tab4 = st.tabs(["📋 Painel (Kanban)", "➕ Nova Carga", "👥 Cadastros (Equipe)", "📊 Relatório Semanal"])
 
 with tab1:
     st.subheader("Visão Geral das Cargas")
     if not cargas_lista:
-        st.info("Nenhuma carga encontrada no banco de dados. Utilize a aba 'Nova Carga' para cadastrar.")
+        st.info("Nenhuma carga encontrada ou banco carregando. Se persistir, verifique a variável FIREBASE_CREDENTIALS_JSON no Render.")
     else:
         col_k1, col_k2, col_k3, col_k4 = st.columns(4)
         
@@ -149,7 +147,7 @@ with tab1:
                     
                     if novo_status != status_atual:
                         carga["status"] = novo_status
-                        salvar_dado_seguro("cargas", carga, carga.get("id"))
+                        salvar_dado_firebase("cargas", carga, carga.get("id"))
                         st.rerun()
 
 with tab2:
@@ -179,7 +177,7 @@ with tab2:
                     "data_entrega": str(data_entrega),
                     "status": "Pendente"
                 }
-                salvar_dado_seguro("cargas", dados_carga, carga_id)
+                salvar_dado_firebase("cargas", dados_carga, carga_id)
                 st.success(f"Carga {carga_id} salva com sucesso!")
                 st.rerun()
 
@@ -193,7 +191,7 @@ with tab3:
             nome_mot = st.text_input("Nome do Motorista")
             if st.form_submit_button("Adicionar Motorista"):
                 if nome_mot:
-                    salvar_dado_seguro("motoristas", {"nome": nome_mot}, nome_mot)
+                    salvar_dado_firebase("motoristas", {"nome": nome_mot}, nome_mot)
                     st.success(f"Motorista {nome_mot} adicionado!")
                     st.rerun()
         
@@ -207,7 +205,7 @@ with tab3:
             nome_aju = st.text_input("Nome do Ajudante")
             if st.form_submit_button("Adicionar Ajudante"):
                 if nome_aju:
-                    salvar_dado_seguro("ajudantes", {"nome": nome_aju}, nome_aju)
+                    salvar_dado_firebase("ajudantes", {"nome": nome_aju}, nome_aju)
                     st.success(f"Ajudante {nome_aju} adicionado!")
                     st.rerun()
                     
