@@ -379,26 +379,27 @@ if menu == "📋 Painel (Kanban)":
                                 st.rerun()
 
 # ----------------------------------------------------
-# 2. NOVA CARGA (COM CORREÇÃO DE ID E VALIDAÇÃO)
+# 2. NOVA CARGA (FLEXÍVEL: SELECIONA OU DIGITA)
 # ----------------------------------------------------
 elif menu == "➕ Nova Carga":
     st.subheader("Cadastrar Novo Agendamento de Carga")
-
-    if not motoristas_lista:
-        st.warning("⚠️ Você precisa cadastrar ao menos um motorista na aba **Cadastros (Equipe)** antes de agendar uma carga.")
 
     with st.form("form_nova_carga"):
         col1, col2 = st.columns(2)
 
         with col1:
-            motorista = st.selectbox("Motorista Responsável", motoristas_lista if motoristas_lista else ["Nenhum cadastrado"])
+            if motoristas_lista:
+                motorista = st.selectbox("Motorista Responsável", motoristas_lista)
+            else:
+                motorista = st.text_input("Motorista Responsável (Digite o nome)", placeholder="Ex: Carlos Silva")
+
             destino = st.text_input("Região / Cidades de Destino", placeholder="Ex: Uberaba, Araxá")
             observacoes = st.text_area("Observações / Rota", placeholder="Ex: Carga com entregas em lojas diferentes")
 
         with col2:
             ajudantes = st.multiselect("Ajudantes da Viagem", ajudantes_lista)
             data_carga = st.date_input("Data do Carregamento")
-            data_saida = st.date_input("Data de Saída")
+            data_saida = st.date_input("Data Saída")
             data_entrega = st.date_input("Data Prevista de Entrega")
 
         status_inicial = st.selectbox(
@@ -414,8 +415,11 @@ elif menu == "➕ Nova Carga":
         submit = st.form_submit_button("Salvar e Agendar Carga")
 
         if submit:
-            if destino and motorista and motorista != "Nenhum cadastrado":
-                # Tratamento robusto para extrair o maior ID numérico atual sem erros
+            if destino and motorista:
+                # Se digitou um motorista novo que não estava na lista, cadastra automaticamente na coleção
+                if not motoristas_lista or motorista not in motoristas_lista:
+                    adicionar_dado("motoristas", {"nome": motorista})
+
                 ids_existentes = []
                 for c in cargas_lista:
                     try:
@@ -440,7 +444,7 @@ elif menu == "➕ Nova Carga":
                 st.success(f"Carga #{novo_id} cadastrada com sucesso!")
                 st.rerun()
             else:
-                st.error("Preencha o destino e certifique-se de que há um motorista válido selecionado.")
+                st.error("Preencha o destino e o motorista.")
 
 # ----------------------------------------------------
 # 3. CADASTROS (EQUIPE)
