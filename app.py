@@ -1,6 +1,7 @@
 import datetime
 import json
 import os
+import requests
 import pandas as pd
 import streamlit as st
 
@@ -58,23 +59,8 @@ st.markdown(
 
 st.title("🚚 Painel de Controle de Cargas e Agendamentos")
 
-ARQUIVO_DADOS = "dados_logistica.json"
-
-def carregar_dados_locais():
-    if os.path.exists(ARQUIVO_DADOS):
-        try:
-            with open(ARQUIVO_DADOS, "r", encoding="utf-8") as f:
-                return json.load(f)
-        except Exception:
-            pass
-    return {"cargas": [], "motoristas": [], "ajudantes": []}
-
-def salvar_dados_locais(dados):
-    try:
-        with open(ARQUIVO_DADOS, "w", encoding="utf-8") as f:
-            json.dump(dados, f, ensure_ascii=False, indent=4)
-    except Exception as e:
-        st.error(f"Erro ao salvar arquivo local: {e}")
+# Configuração do Firebase Firestore via REST API (Funciona perfeitamente no Render)
+FIREBASE_PROJECT_ID = "planejamentoagendamento" # Substitua pelo ID do seu projeto no Firebase se for diferente
 
 def formatar_data_br(data_str):
     if not data_str:
@@ -85,14 +71,56 @@ def formatar_data_br(data_str):
     except Exception:
         return data_str
 
-if "db_local" not in st.session_state:
-    st.session_state["db_local"] = carregar_dados_locais()
+def carregar_colecao(colecao):
+    url = f"https://firestore.googleapis.com/v1/projects/{FIREBASE_PROJECT_ID}/databases/(default)/documents/{colecao}"
+    try:
+        response = requests.get(url, timeout=5)
+        if response.status_code == 200:
+            data = response.json()
+            documentos = []
+            for doc in data.get("documents", []):
+                doc_id = doc["name"].split("/")[-1]
+                fields = doc.get("fields", {})
+                item = {"id": doc_id}
+                for k, v in fields.items():
+                    item[k] = list(v.values())[0]
+                documentos.append(item)
+            return documentos
+    except Exception:
+        pass
+    return []
 
-db = st.session_state["db_local"]
+def salvar_documento(colecao, doc_id, dados):
+    url = f"https://firestore.googleapis.com/v1/projects/{FIREBASE_PROJECT_ID}/databases/(default)/documents/{colecao}?documentId={doc_id}"
+    fields = {}
+    for k, v in dados.items():
+        if isinstance(v, list):
+            fields[k] = {"arrayValue": {"values": [{"stringValue": str(x)} for x in v]}}
+        else:
+            fields[k] = {"stringValue": str(v)}
+    try:
+        requests.patch(f"https://firestore.googleapis.com/v1/projects/{FIREBASE_PROJECT_ID}/databases/(default)/documents/{colecao}/{doc_id}", json={"fields": fields}, timeout=5)
+    except Exception as e:
+        st.error(f"Erro ao salvar no Firebase: {e}")
 
-cargas_lista = db.get("cargas", [])
-motoristas_lista = [m.get("nome", "") for m in db.get("motoristas", [])]
-ajudantes_lista = [a.get("nome", "") for a in db.get("ajudantes", [])]
+def deletar_documento(colecao, doc_id):
+    url = f"https://firestore.googleapis.com/v1/projects/{FIREBASE_PROJECT_ID}/databases/(default)/documents/{colecao}/{doc_id}"
+    try:
+        requests.delete(url, timeout=5)
+    except Exception as e:
+        st.error(f"Erro ao excluir no Firebase: {e}")
+
+# Inicializando Estado com Firebase
+if "cargas" not in st.session_state:
+    st.session_state["cargas"] = carregar_colecao("cargas")
+if "motoristas" not in st.session_state:
+    st.session_state["motoristas"] = carregar_colecao("motoristas")
+if "ajudantes" not in st.session_state:
+    st.session_state["ajudantes"] = carregar_colecao("ajudantes")
+
+cargas_lista = st.session_state["cargas"]
+motoristas_lista = [m.get("nome", "") for m in st.session_state["motoristas"] if m.get("nome")]
+ajudantes_lista = [a.get("nome", "") for a in st.session_state["ajudantes"] if a.get("nome")]
 
 if "editando_idx" not in st.session_state:
     st.session_state["editando_idx"] = None
@@ -125,7 +153,7 @@ with tab1:
                     dt_car_val = datetime.datetime.strptime(carga_edit.get("data_carregamento"), "%Y-%m-%d").date() if carga_edit.get("data_carregamento") else None
                     dt_said_val = datetime.datetime.strptime(carga_edit.get("data_saida"), "%Y-%m-%d").date() if carga_edit.get("data_saida") else None
                     
-                    nova_data_carregamento = st.date_input("Previsão / Data de Carregamento", value=dt_car_val if dt_car_val else datetime.date.today(), help="Deixe a data desejada")
+                    nova_data_carregamento = st.date_input("Previsão / Data de Carregamento", value=dt_car_val if dt_car_val else datetime.date.today())
                     usar_carregamento = st.checkbox("Incluir Data de Carregamento", value=True if carga_edit.get("data_carregamento") else False)
 
                     nova_data_saida = st.date_input("Data de Saída", value=dt_said_val if dt_said_val else datetime.date.today())
@@ -143,16 +171,19 @@ with tab1:
                     cancelar_edicao = st.form_submit_button("❌ Cancelar")
 
                 if salvar_edicao:
-                    cargas_lista[idx_edit].update({
+                    doc_id = carga_edit.get("id")
+                    dados_atualizados = {
+                        "id": doc_id,
                         "destino": novo_destino,
                         "motorista": novo_motorista,
                         "ajudantes": novos_ajudantes,
                         "data_carregamento": str(nova_data_carregamento) if usar_carregamento else "",
                         "data_saida": str(nova_data_saida) if usar_saida else "",
                         "status": novo_status
-                    })
-                    db["cargas"] = cargas_lista
-                    salvar_dados_locais(db)
+                    }
+                    salvar_documento("cargas", doc_id, dados_atualizados)
+                    cargas_lista[idx_edit] = dados_atualizados
+                    st.session_state["cargas"] = cargas_lista
                     st.session_state["editando_idx"] = None
                     st.success("Carga atualizada com sucesso!")
                     st.rerun()
@@ -163,7 +194,7 @@ with tab1:
             st.markdown("---")
 
     if not cargas_lista:
-        st.info("Nenhuma carga cadastrada. Utilize a aba 'Nova Carga' para começar.")
+        st.info("Nenhuma carga cadastrada.")
     else:
         col_k1, col_k2, col_k3, col_k4 = st.columns(4)
         
@@ -211,8 +242,7 @@ with tab1:
                         cargas_lista[idx]["status"] = novo_status
                         if novo_status == "Carregando" and not cargas_lista[idx].get("data_carregamento"):
                             cargas_lista[idx]["data_carregamento"] = str(datetime.date.today())
-                        db["cargas"] = cargas_lista
-                        salvar_dados_locais(db)
+                        salvar_documento("cargas", carga.get("id"), cargas_lista[idx])
                         st.rerun()
 
                     bcol1, bcol2 = st.columns(2)
@@ -222,9 +252,9 @@ with tab1:
                             st.rerun()
                     with bcol2:
                         if st.button("🗑️ Excluir", key=f"btn_del_{idx}"):
+                            deletar_documento("cargas", carga.get("id"))
                             cargas_lista.pop(idx)
-                            db["cargas"] = cargas_lista
-                            salvar_dados_locais(db)
+                            st.session_state["cargas"] = cargas_lista
                             if st.session_state["editando_idx"] == idx:
                                 st.session_state["editando_idx"] = None
                             st.rerun()
@@ -246,8 +276,9 @@ with tab2:
             if not destino:
                 st.error("O destino é obrigatório!")
             else:
+                novo_id = f"carga_{int(datetime.datetime.now().timestamp())}"
                 dados_carga = {
-                    "id": str(len(cargas_lista) + 1),
+                    "id": novo_id,
                     "destino": destino,
                     "motorista": motorista,
                     "ajudantes": ajudantes_selecionados,
@@ -255,9 +286,10 @@ with tab2:
                     "data_saida": str(data_saida) if data_saida else "",
                     "status": "Previsão de Carregamento"
                 }
-                db["cargas"].append(dados_carga)
-                salvar_dados_locais(db)
-                st.success("Carga salva com sucesso!")
+                salvar_documento("cargas", novo_id, dados_carga)
+                cargas_lista.append(dados_carga)
+                st.session_state["cargas"] = cargas_lista
+                st.success("Carga salva com sucesso no banco de dados!")
                 st.rerun()
 
 with tab3:
@@ -271,8 +303,10 @@ with tab3:
             submitted_mot = st.form_submit_button("Adicionar Motorista")
             if submitted_mot:
                 if nome_mot:
-                    db["motoristas"].append({"nome": nome_mot})
-                    salvar_dados_locais(db)
+                    doc_id = f"mot_{int(datetime.datetime.now().timestamp())}"
+                    dados_mot = {"id": doc_id, "nome": nome_mot}
+                    salvar_documento("motoristas", doc_id, dados_mot)
+                    st.session_state["motoristas"].append(dados_mot)
                     st.success(f"Motorista {nome_mot} adicionado!")
                     st.rerun()
         
@@ -287,8 +321,10 @@ with tab3:
             submitted_aju = st.form_submit_button("Adicionar Ajudante")
             if submitted_aju:
                 if nome_aju:
-                    db["ajudantes"].append({"nome": nome_aju})
-                    salvar_dados_locais(db)
+                    doc_id = f"aju_{int(datetime.datetime.now().timestamp())}"
+                    dados_aju = {"id": doc_id, "nome": nome_aju}
+                    salvar_documento("ajudantes", doc_id, dados_aju)
+                    st.session_state["ajudantes"].append(dados_aju)
                     st.success(f"Ajudante {nome_aju} adicionado!")
                     st.rerun()
                     
