@@ -58,7 +58,6 @@ st.markdown(
 
 st.title("🚚 Painel de Controle de Cargas e Agendamentos")
 
-# Gerenciamento local de dados (Rápido e sem travamentos de rede)
 ARQUIVO_DADOS = "dados_logistica.json"
 
 def carregar_dados_locais():
@@ -77,7 +76,6 @@ def salvar_dados_locais(dados):
     except Exception as e:
         st.error(f"Erro ao salvar arquivo local: {e}")
 
-# Inicializa o estado com os dados do arquivo
 if "db_local" not in st.session_state:
     st.session_state["db_local"] = carregar_dados_locais()
 
@@ -87,13 +85,12 @@ cargas_lista = db.get("cargas", [])
 motoristas_lista = [m.get("nome", "") for m in db.get("motoristas", [])]
 ajudantes_lista = [a.get("nome", "") for a in db.get("ajudantes", [])]
 
-# Abas do Painel
 tab1, tab2, tab3, tab4 = st.tabs(["📋 Painel (Kanban)", "➕ Nova Carga", "👥 Cadastros (Equipe)", "📊 Relatório Semanal"])
 
 with tab1:
     st.subheader("Visão Geral das Cargas")
     if not cargas_lista:
-        st.info("Nenhuma carga cadastrada. Utilize a aba 'Nova Carga' para comecar.")
+        st.info("Nenhuma carga cadastrada. Utilize a aba 'Nova Carga' para começar.")
     else:
         col_k1, col_k2, col_k3, col_k4 = st.columns(4)
         
@@ -115,16 +112,16 @@ with tab1:
             
             with col_alvo:
                 with st.container():
-                    st.markdown(f"**ID:** {carga.get('id', 'N/A')}")
-                    st.markdown(f"**Motorista:** {carga.get('motorista', 'Não informado')}")
                     st.markdown(f"**Destino:** {carga.get('destino', 'Não informado')}")
+                    st.markdown(f"**Motorista:** {carga.get('motorista', 'Não informado')}")
+                    st.markdown(f"**Carregamento:** {carga.get('data_carregamento', '')}")
                     st.markdown(f"**Saída:** {carga.get('data_saida', '')}")
                     
                     novo_status = st.selectbox(
                         "Status", 
                         ["Pendente", "Em Rota", "Entregue", "Cancelado"], 
                         index=["Pendente", "Em Rota", "Entregue", "Cancelado"].index(status_atual) if status_atual in ["Pendente", "Em Rota", "Entregue", "Cancelado"] else 0,
-                        key=f"status_{idx}_{carga.get('id')}"
+                        key=f"status_{idx}"
                     )
                     
                     if novo_status != status_atual:
@@ -138,31 +135,32 @@ with tab2:
     with st.form("form_nova_carga", clear_on_submit=True):
         col_f1, col_f2 = st.columns(2)
         with col_f1:
-            carga_id = st.text_input("ID / Número do Pedido ou Carga")
-            motorista = st.selectbox("Motorista", motoristas_lista if motoristas_lista else ["Nenhum cadastrado"])
             destino = st.text_input("Destino (Cidade / Bairro)")
-        with col_f2:
+            motorista = st.selectbox("Motorista", motoristas_lista if motoristas_lista else ["Nenhum cadastrado"])
             ajudantes_selecionados = st.multiselect("Ajudantes", ajudantes_lista)
+        with col_f2:
+            data_carregamento = st.date_input("Data do Carregamento", datetime.date.today())
             data_saida = st.date_input("Data de Saída", datetime.date.today())
             data_entrega = st.date_input("Previsão de Entrega", datetime.date.today())
             
         submitted = st.form_submit_button("Salvar Carga")
         if submitted:
-            if not carga_id:
-                st.error("O ID da carga é obrigatório!")
+            if not destino:
+                st.error("O destino é obrigatório!")
             else:
                 dados_carga = {
-                    "id": carga_id,
-                    "motorista": motorista,
+                    "id": str(len(cargas_lista) + 1),
                     "destino": destino,
+                    "motorista": motorista,
                     "ajudantes": ajudantes_selecionados,
+                    "data_carregamento": str(data_carregamento),
                     "data_saida": str(data_saida),
                     "data_entrega": str(data_entrega),
                     "status": "Pendente"
                 }
                 db["cargas"].append(dados_carga)
                 salvar_dados_locais(db)
-                st.success(f"Carga {carga_id} salva com sucesso!")
+                st.success("Carga salva com sucesso!")
                 st.rerun()
 
 with tab3:
