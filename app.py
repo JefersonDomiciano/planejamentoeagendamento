@@ -22,7 +22,7 @@ st.markdown(
     <style>
         #MainMenu {visibility: hidden;}
         footer {visibility: hidden;}
-        .block-container {padding-top: 1rem; padding-bottom: 2rem; max-width: 98%;}
+        .block-container {padding-top: 1rem; padding-bottom: 2rem; max-width: 100%;}
         
         .kanban-header {
             text-align: center; 
@@ -56,6 +56,17 @@ st.markdown(
         .stSelectbox label, .stDateInput label {
             font-size: 12px !important;
             color: #8b949e !important;
+        }
+
+        /* Otimizações responsivas para telas menores (Celulares) */
+        @media (max-width: 768px) {
+            .block-container {
+                padding-left: 0.5rem;
+                padding-right: 0.5rem;
+            }
+            h1 {
+                font-size: 22px !important;
+            }
         }
     </style>
 """,
@@ -296,6 +307,7 @@ if menu == "📋 Painel (Kanban)":
     paleta_cores = ["#58a6ff", "#3fb950", "#d29922", "#bc8cff", "#f85149", "#39c5bb", "#f0883e", "#db61a2"]
     mapa_cores = {mot: paleta_cores[i % len(paleta_cores)] for i, mot in enumerate(motoristas_lista)}
 
+    # No celular, o Streamlit empilha colunas automaticamente para não quebrar a leitura
     cols = st.columns(len(colunas_status))
 
     for idx, status in enumerate(colunas_status):
