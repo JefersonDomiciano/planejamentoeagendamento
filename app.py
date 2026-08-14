@@ -7,7 +7,6 @@ import pandas as pd
 import streamlit as st
 from fpdf import FPDF
 import openpyxl
-import plotly.graph_objects as go
 from openpyxl.styles import Font, Alignment, PatternFill, Border, Side
 from openpyxl.utils import get_column_letter
 
@@ -70,6 +69,29 @@ st.markdown(
         .section-title {color:#f1f5f9; font-size:18px; font-weight:800; margin:4px 0 14px;}
         .stSelectbox label,.stDateInput label,.stTextInput label,.stMultiSelect label,.stTextArea label {font-size:11px!important; color:#8ea0b8!important; font-weight:650!important;}
         div[data-testid="stDataFrame"] {border:1px solid #263449; border-radius:12px; overflow:hidden;}
+
+        .chart-card {background:linear-gradient(145deg,#172131 0%,#111827 100%); border:1px solid #263449; border-radius:14px; padding:18px; margin:0 0 14px 0; box-shadow:0 10px 28px rgba(0,0,0,.14);}
+        .chart-heading {display:flex; justify-content:space-between; align-items:flex-end; margin-bottom:16px; color:#f1f5f9; font-size:14px; font-weight:800;}
+        .chart-heading small {color:#718198; font-size:10px; font-weight:600;}
+        .donut-layout {display:flex; align-items:center; gap:30px; min-height:230px;}
+        .donut {width:190px; height:190px; border-radius:50%; display:flex; align-items:center; justify-content:center; flex-shrink:0;}
+        .donut-hole {width:116px; height:116px; border-radius:50%; background:#111827; display:flex; flex-direction:column; align-items:center; justify-content:center; box-shadow:0 0 0 1px #263449 inset;}
+        .donut-hole strong {font-size:28px; line-height:1; color:#f8fafc;}
+        .donut-hole span {font-size:10px; color:#718198; margin-top:5px;}
+        .legend-list {flex:1;} .legend-row {display:grid; grid-template-columns:12px 1fr auto; gap:8px; align-items:center; padding:8px 0; color:#cbd5e1; font-size:11px; border-bottom:1px solid rgba(148,163,184,.08);}
+        .legend-row b {color:#f8fafc; font-size:12px;} .legend-dot {width:8px; height:8px; border-radius:50%; display:block;}
+        .bar-list {display:flex; flex-direction:column; gap:13px;}
+        .bar-row {display:grid; grid-template-columns:180px 1fr 34px; gap:10px; align-items:center;}
+        .bar-label {overflow:hidden; text-overflow:ellipsis; white-space:nowrap; color:#cbd5e1; font-size:11px;}
+        .bar-track {height:9px; background:#202c3d; border-radius:999px; overflow:hidden;}
+        .bar-fill {height:100%; border-radius:999px; background:linear-gradient(90deg,#3b82f6,#60a5fa); box-shadow:0 0 12px rgba(59,130,246,.18);}
+        .bar-value {text-align:right; color:#f8fafc; font-size:12px; font-weight:800;}
+        .chart-empty {padding:35px 10px; text-align:center; color:#718198; font-size:12px;}
+        .evo-chart {height:220px; display:flex; align-items:flex-end; gap:10px; padding:12px 5px 0; border-bottom:1px solid #263449; overflow-x:auto;}
+        .evo-item {height:100%; min-width:44px; display:flex; flex-direction:column; justify-content:flex-end; align-items:center; gap:6px;}
+        .evo-value {color:#dbeafe; font-size:10px; font-weight:800;}
+        .evo-bar {width:26px; min-height:8px; border-radius:7px 7px 2px 2px; background:linear-gradient(180deg,#60a5fa,#2563eb); box-shadow:0 4px 12px rgba(37,99,235,.18);}
+        .evo-label {color:#718198; font-size:9px; white-space:nowrap;}
 
         @media (max-width:768px) {
             .block-container{padding-left:.65rem;padding-right:.65rem;padding-top:.6rem;}
@@ -2622,7 +2644,7 @@ elif menu == "📈 Relatórios":
 
 
         # ====================================================
-        # GRÁFICOS PROFISSIONAIS
+        # GRÁFICOS PROFISSIONAIS — SEM DEPENDÊNCIAS EXTERNAS
         # ====================================================
 
         st.markdown('<div class="section-title">📊 Visão Gerencial</div>', unsafe_allow_html=True)
@@ -2648,7 +2670,7 @@ elif menu == "📈 Relatórios":
 
         motorista_contagem = {}
         for c in cargas_relatorio:
-            motorista = c.get("motorista", "Sem motorista")
+            motorista = c.get("motorista", "Sem motorista") or "Sem motorista"
             motorista_contagem[motorista] = motorista_contagem.get(motorista, 0) + 1
 
         evolucao_contagem = {}
@@ -2657,70 +2679,75 @@ elif menu == "📈 Relatórios":
             if data_obj:
                 evolucao_contagem[data_obj] = evolucao_contagem.get(data_obj, 0) + 1
 
-        gc1, gc2 = st.columns(2)
+        def grafico_status_html(contagem, total):
+            partes = []
+            inicio = 0.0
+            for status in status_ordem:
+                valor = contagem.get(status, 0)
+                if not valor or not total:
+                    continue
+                fim = inicio + (valor / total) * 100
+                partes.append(f"{cores_status[status]} {inicio:.2f}% {fim:.2f}%")
+                inicio = fim
+            if not partes:
+                return '<div class="chart-empty">Nenhuma carga encontrada.</div>'
+            gradient = ", ".join(partes)
+            legenda = "".join(
+                f'<div class="legend-row"><span class="legend-dot" style="background:{cores_status[s]}"></span><span>{s}</span><b>{contagem.get(s,0)}</b></div>'
+                for s in status_ordem if contagem.get(s, 0)
+            )
+            return f"""
+            <div class="chart-card">
+              <div class="chart-heading"><span>Cargas por Status</span><small>Distribuição atual</small></div>
+              <div class="donut-layout">
+                <div class="donut" style="background:conic-gradient({gradient})">
+                  <div class="donut-hole"><strong>{total}</strong><span>cargas</span></div>
+                </div>
+                <div class="legend-list">{legenda}</div>
+              </div>
+            </div>"""
 
-        with gc1:
-            labels_status = [s for s in status_ordem if status_contagem.get(s, 0) > 0]
-            values_status = [status_contagem[s] for s in labels_status]
-            if labels_status:
-                fig = go.Figure(go.Pie(
-                    labels=labels_status, values=values_status, hole=0.68, sort=False,
-                    marker=dict(colors=[cores_status[s] for s in labels_status], line=dict(color="#111827", width=3)),
-                    textinfo="percent", textfont=dict(color="#f8fafc", size=12),
-                    hovertemplate="<b>%{label}</b><br>%{value} carga(s)<br>%{percent}<extra></extra>",
-                ))
-                fig.add_annotation(text=f"<b>{total_relatorio}</b><br><span style='font-size:11px'>cargas</span>", x=.5, y=.5, showarrow=False, font=dict(color="#f8fafc", size=18))
-                fig.update_layout(title=dict(text="Cargas por Status", font=dict(size=15, color="#f1f5f9"), x=.02), height=330, margin=dict(l=5,r=5,t=55,b=5), paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(0,0,0,0)", legend=dict(orientation="v", x=.99, xanchor="right", y=.5, font=dict(size=10, color="#cbd5e1")))
-                st.plotly_chart(fig, use_container_width=True, config={"displayModeBar": False})
-            else:
-                st.info("Nenhuma carga disponível para o gráfico de status.")
+        def grafico_barras_html(titulo, dados, limite=8):
+            pares = sorted(dados.items(), key=lambda x: x[1], reverse=True)[:limite]
+            if not pares:
+                return f'<div class="chart-card"><div class="chart-heading"><span>{titulo}</span></div><div class="chart-empty">Nenhum dado disponível.</div></div>'
+            maximo = max(v for _, v in pares) or 1
+            linhas = ""
+            for nome, valor in pares:
+                largura = max(7, (valor / maximo) * 100)
+                linhas += f"""
+                <div class="bar-row">
+                  <div class="bar-label" title="{nome}">{nome}</div>
+                  <div class="bar-track"><div class="bar-fill" style="width:{largura:.1f}%"></div></div>
+                  <div class="bar-value">{valor}</div>
+                </div>"""
+            return f"""
+            <div class="chart-card">
+              <div class="chart-heading"><span>{titulo}</span><small>Top {len(pares)}</small></div>
+              <div class="bar-list">{linhas}</div>
+            </div>"""
 
-        with gc2:
-            if motorista_contagem:
-                pares = sorted(motorista_contagem.items(), key=lambda x: x[1], reverse=True)
-                nomes = [p[0] for p in pares]
-                quantidades = [p[1] for p in pares]
-                fig = go.Figure(go.Bar(
-                    x=quantidades, y=nomes, orientation="h", marker=dict(color="#3b82f6", line=dict(color="#60a5fa", width=1)),
-                    text=quantidades, textposition="outside", textfont=dict(color="#e2e8f0", size=11),
-                    hovertemplate="<b>%{y}</b><br>%{x} carga(s)<extra></extra>",
-                ))
-                fig.update_layout(title=dict(text="Cargas por Motorista", font=dict(size=15, color="#f1f5f9"), x=.02), height=330, margin=dict(l=10,r=40,t=55,b=25), paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(0,0,0,0)", xaxis=dict(showgrid=True, gridcolor="rgba(148,163,184,.12)", zeroline=False, tickfont=dict(color="#718198", size=10)), yaxis=dict(showgrid=False, autorange="reversed", tickfont=dict(color="#cbd5e1", size=11)), showlegend=False)
-                st.plotly_chart(fig, use_container_width=True, config={"displayModeBar": False})
-            else:
-                st.info("Nenhum motorista disponível para o gráfico.")
+        st.markdown(grafico_status_html(status_contagem, total_relatorio), unsafe_allow_html=True)
+        st.markdown(grafico_barras_html("Cargas por Motorista", motorista_contagem), unsafe_allow_html=True)
 
-        gc3, gc4 = st.columns([1.65, 1])
+        if evolucao_contagem:
+            datas = sorted(evolucao_contagem)
+            max_val = max(evolucao_contagem.values()) or 1
+            pontos = []
+            for data_obj in datas:
+                valor = evolucao_contagem[data_obj]
+                altura = max(8, (valor / max_val) * 100)
+                pontos.append(
+                    f'<div class="evo-item"><div class="evo-value">{valor}</div><div class="evo-bar" style="height:{altura:.1f}%"></div><div class="evo-label">{data_obj.strftime("%d/%m")}</div></div>'
+                )
+            html_evo = f"""
+            <div class="chart-card">
+              <div class="chart-heading"><span>Movimentação por Data</span><small>Data de saída/carregamento</small></div>
+              <div class="evo-chart">{"".join(pontos)}</div>
+            </div>"""
+            st.markdown(html_evo, unsafe_allow_html=True)
 
-        with gc3:
-            if evolucao_contagem:
-                datas = sorted(evolucao_contagem)
-                valores = [evolucao_contagem[d] for d in datas]
-                fig = go.Figure(go.Scatter(
-                    x=datas, y=valores, mode="lines+markers", line=dict(color="#60a5fa", width=3, shape="spline"),
-                    marker=dict(color="#60a5fa", size=7, line=dict(color="#dbeafe", width=2)), fill="tozeroy", fillcolor="rgba(59,130,246,.12)",
-                    hovertemplate="<b>%{x|%d/%m/%Y}</b><br>%{y} carga(s)<extra></extra>",
-                ))
-                fig.update_layout(title=dict(text="Evolução de Cargas", font=dict(size=15, color="#f1f5f9"), x=.02), height=310, margin=dict(l=10,r=15,t=55,b=25), paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(0,0,0,0)", xaxis=dict(showgrid=False, tickfont=dict(color="#718198", size=9)), yaxis=dict(showgrid=True, gridcolor="rgba(148,163,184,.12)", zeroline=False, dtick=1, tickfont=dict(color="#718198", size=9)), showlegend=False)
-                st.plotly_chart(fig, use_container_width=True, config={"displayModeBar": False})
-            else:
-                st.info("Não há datas válidas para montar a evolução.")
-
-        with gc4:
-            if motorista_contagem:
-                top = sorted(motorista_contagem.items(), key=lambda x: x[1], reverse=True)[:5]
-                nomes_top = [p[0] for p in top]
-                valores_top = [p[1] for p in top]
-                maior = max(valores_top) if valores_top else 1
-                fig = go.Figure(go.Bar(
-                    x=valores_top, y=nomes_top, orientation="h", marker=dict(color="#8b5cf6"),
-                    text=valores_top, textposition="outside", textfont=dict(color="#e2e8f0", size=11),
-                    hovertemplate="<b>%{y}</b><br>%{x} carga(s)<extra></extra>",
-                ))
-                fig.update_layout(title=dict(text="Top Motoristas", font=dict(size=15, color="#f1f5f9"), x=.02), height=310, margin=dict(l=10,r=35,t=55,b=25), paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(0,0,0,0)", xaxis=dict(range=[0,max(maior+1,2)],showgrid=False,showticklabels=False,zeroline=False), yaxis=dict(autorange="reversed",showgrid=False,tickfont=dict(color="#cbd5e1",size=10)), showlegend=False)
-                st.plotly_chart(fig, use_container_width=True, config={"displayModeBar": False})
-            else:
-                st.info("Nenhum motorista no ranking.")
+        st.markdown(grafico_barras_html("Top Motoristas", motorista_contagem, limite=5), unsafe_allow_html=True)
 
         # ====================================================
         # TABELA
