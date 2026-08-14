@@ -335,7 +335,6 @@ def salvar_documento(colecao, doc_id, dados):
         return False
 
 
-
 def atualizar_campos_documento(colecao, doc_id, campos):
     """
     Atualiza somente os campos informados no documento.
@@ -453,7 +452,6 @@ def deletar_documento(colecao, doc_id):
 
 
 def atualizar_dados():
-
     st.session_state["cargas"] = carregar_colecao("cargas")
     st.session_state["motoristas"] = carregar_colecao("motoristas")
     st.session_state["ajudantes"] = carregar_colecao("ajudantes")
@@ -464,7 +462,6 @@ def atualizar_dados():
 
 
 def carga_atrasada(carga):
-
     status = carga.get("status", "")
 
     if status == "Entregue / Concluído":
@@ -481,7 +478,6 @@ def carga_atrasada(carga):
 
 
 def carga_saida_hoje(carga):
-
     data_saida = converter_para_data(
         carga.get("data_saida")
     )
@@ -493,7 +489,6 @@ def carga_saida_hoje(carga):
 
 
 def carga_entrega_hoje(carga):
-
     data_entrega = converter_para_data(
         carga.get("data_entrega")
     )
@@ -505,7 +500,6 @@ def carga_entrega_hoje(carga):
 
 
 def dias_para_entrega(carga):
-
     data_entrega = converter_para_data(
         carga.get("data_entrega")
     )
@@ -517,7 +511,6 @@ def dias_para_entrega(carga):
 
 
 def texto_prazo(carga):
-
     dias = dias_para_entrega(carga)
 
     if dias is None:
@@ -544,14 +537,12 @@ def texto_prazo(carga):
 
 
 def preparar_dataframe(cargas_lista):
-
     df = pd.DataFrame(cargas_lista)
 
     if df.empty:
         return df
 
     if "ajudantes" in df.columns:
-
         df["ajudantes"] = df["ajudantes"].apply(
             lambda x: ", ".join(map(str, x))
             if isinstance(x, list)
@@ -563,9 +554,7 @@ def preparar_dataframe(cargas_lista):
         "data_saida",
         "data_entrega"
     ]:
-
         if col in df.columns:
-
             df[col] = df[col].apply(
                 formatar_data_br
             )
@@ -598,42 +587,16 @@ def preparar_dataframe(cargas_lista):
 # ============================================================
 
 def gerar_excel_profissional(df):
-
     output = io.BytesIO()
-
     wb = openpyxl.Workbook()
-
     ws = wb.active
     ws.title = "Relatorio de Cargas"
 
-    header_font = Font(
-        name="Arial",
-        size=10,
-        bold=True,
-        color="FFFFFF"
-    )
-
-    header_fill = PatternFill(
-        start_color="2F75B5",
-        end_color="2F75B5",
-        fill_type="solid"
-    )
-
-    data_font = Font(
-        name="Arial",
-        size=9
-    )
-
-    center_alignment = Alignment(
-        horizontal="center",
-        vertical="center"
-    )
-
-    left_alignment = Alignment(
-        horizontal="left",
-        vertical="center"
-    )
-
+    header_font = Font(name="Arial", size=10, bold=True, color="FFFFFF")
+    header_fill = PatternFill(start_color="2F75B5", end_color="2F75B5", fill_type="solid")
+    data_font = Font(name="Arial", size=9)
+    center_alignment = Alignment(horizontal="center", vertical="center")
+    left_alignment = Alignment(horizontal="left", vertical="center")
     thin_border = Border(
         left=Side(style="thin", color="D9D9D9"),
         right=Side(style="thin", color="D9D9D9"),
@@ -653,16 +616,8 @@ def gerar_excel_profissional(df):
         "Status"
     ]
 
-    for col_num, header in enumerate(
-        headers[:len(df.columns)],
-        1
-    ):
-
-        cell = ws.cell(
-            row=1,
-            column=col_num
-        )
-
+    for col_num, header in enumerate(headers[:len(df.columns)], 1):
+        cell = ws.cell(row=1, column=col_num)
         cell.value = header
         cell.font = header_font
         cell.fill = header_fill
@@ -671,60 +626,26 @@ def gerar_excel_profissional(df):
 
     ws.row_dimensions[1].height = 24
 
-    for row_num, row_data in enumerate(
-        df.values,
-        2
-    ):
-
+    for row_num, row_data in enumerate(df.values, 2):
         ws.row_dimensions[row_num].height = 20
 
-        for col_num, value in enumerate(
-            row_data,
-            1
-        ):
-
-            cell = ws.cell(
-                row=row_num,
-                column=col_num
-            )
-
-            cell.value = (
-                ""
-                if str(value).lower() in ["nan", "none"]
-                else value
-            )
-
+        for col_num, value in enumerate(row_data, 1):
+            cell = ws.cell(row=row_num, column=col_num)
+            cell.value = "" if str(value).lower() in ["nan", "none"] else value
             cell.font = data_font
             cell.border = thin_border
 
             if col_num in [1, 6, 7, 8]:
-
                 cell.alignment = center_alignment
-
             else:
-
                 cell.alignment = left_alignment
 
     for col in ws.columns:
-
-        max_len = max(
-            len(str(cell.value or ""))
-            for cell in col
-        )
-
-        col_letter = get_column_letter(
-            col[0].column
-        )
-
-        ws.column_dimensions[
-            col_letter
-        ].width = max(
-            max_len + 5,
-            15
-        )
+        max_len = max(len(str(cell.value or "")) for cell in col)
+        col_letter = get_column_letter(col[0].column)
+        ws.column_dimensions[col_letter].width = max(max_len + 5, 15)
 
     wb.save(output)
-
     return output.getvalue()
 
 
@@ -733,195 +654,41 @@ def gerar_excel_profissional(df):
 # ============================================================
 
 def gerar_pdf(df):
-
-    pdf = FPDF(
-        orientation="L",
-        unit="mm",
-        format="A4"
-    )
-
+    pdf = FPDF(orientation="L", unit="mm", format="A4")
     pdf.add_page()
+    pdf.set_font("Arial", "B", 14)
+    pdf.cell(277, 8, txt="Relatório de Cargas", ln=True, align="C")
 
-    pdf.set_font(
-        "Arial",
-        "B",
-        14
-    )
-
-    pdf.cell(
-        277,
-        8,
-        txt="Relatório de Cargas",
-        ln=True,
-        align="C"
-    )
-
-    pdf.set_font(
-        "Arial",
-        "",
-        9
-    )
-
-    pdf.cell(
-        277,
-        5,
-        txt=(
-            f"Data de geração: "
-            f"{datetime.date.today().strftime('%d/%m/%Y')}"
-        ),
-        ln=True,
-        align="C"
-    )
-
+    pdf.set_font("Arial", "", 9)
+    pdf.cell(277, 5, txt=f"Data de geração: {datetime.date.today().strftime('%d/%m/%Y')}", ln=True, align="C")
     pdf.ln(4)
 
-    pdf.set_font(
-        "Arial",
-        "B",
-        9
-    )
+    pdf.set_font("Arial", "B", 9)
+    pdf.set_fill_color(47, 117, 181)
+    pdf.set_text_color(255, 255, 255)
 
-    pdf.set_fill_color(
-        47,
-        117,
-        181
-    )
+    larguras = [25, 40, 50, 45, 28, 28, 28, 33]
+    nomes_colunas = ["ID", "Motorista", "Destino", "Ajudantes", "Carga", "Saída", "Entrega", "Status"]
 
-    pdf.set_text_color(
-        255,
-        255,
-        255
-    )
-
-    larguras = [
-        25,
-        40,
-        50,
-        45,
-        28,
-        28,
-        28,
-        33
-    ]
-
-    nomes_colunas = [
-        "ID",
-        "Motorista",
-        "Destino",
-        "Ajudantes",
-        "Carga",
-        "Saída",
-        "Entrega",
-        "Status"
-    ]
-
-    for i, nome in enumerate(
-        nomes_colunas
-    ):
-
-        pdf.cell(
-            larguras[i],
-            7,
-            nome,
-            1,
-            0,
-            "C",
-            True
-        )
+    for i, nome in enumerate(nomes_colunas):
+        pdf.cell(larguras[i], 7, nome, 1, 0, "C", True)
 
     pdf.ln()
-
-    pdf.set_font(
-        "Arial",
-        "",
-        8
-    )
-
-    pdf.set_text_color(
-        0,
-        0,
-        0
-    )
+    pdf.set_font("Arial", "", 8)
+    pdf.set_text_color(0, 0, 0)
 
     for _, row in df.iterrows():
-
-        pdf.cell(
-            larguras[0],
-            6,
-            str(row.get("id", "")),
-            1,
-            0,
-            "C"
-        )
-
-        pdf.cell(
-            larguras[1],
-            6,
-            str(row.get("motorista", ""))[:22],
-            1,
-            0,
-            "L"
-        )
-
-        pdf.cell(
-            larguras[2],
-            6,
-            str(row.get("destino", ""))[:30],
-            1,
-            0,
-            "L"
-        )
-
-        pdf.cell(
-            larguras[3],
-            6,
-            str(row.get("ajudantes", ""))[:25],
-            1,
-            0,
-            "L"
-        )
-
-        pdf.cell(
-            larguras[4],
-            6,
-            str(row.get("data_carga", "")),
-            1,
-            0,
-            "C"
-        )
-
-        pdf.cell(
-            larguras[5],
-            6,
-            str(row.get("data_saida", "")),
-            1,
-            0,
-            "C"
-        )
-
-        pdf.cell(
-            larguras[6],
-            6,
-            str(row.get("data_entrega", "")),
-            1,
-            0,
-            "C"
-        )
-
-        pdf.cell(
-            larguras[7],
-            6,
-            str(row.get("status", ""))[:18],
-            1,
-            0,
-            "C"
-        )
-
+        pdf.cell(larguras[0], 6, str(row.get("id", "")), 1, 0, "C")
+        pdf.cell(larguras[1], 6, str(row.get("motorista", ""))[:22], 1, 0, "L")
+        pdf.cell(larguras[2], 6, str(row.get("destino", ""))[:30], 1, 0, "L")
+        pdf.cell(larguras[3], 6, str(row.get("ajudantes", ""))[:25], 1, 0, "L")
+        pdf.cell(larguras[4], 6, str(row.get("data_carga", "")), 1, 0, "C")
+        pdf.cell(larguras[5], 6, str(row.get("data_saida", "")), 1, 0, "C")
+        pdf.cell(larguras[6], 6, str(row.get("data_entrega", "")), 1, 0, "C")
+        pdf.cell(larguras[7], 6, str(row.get("status", ""))[:18], 1, 0, "C")
         pdf.ln()
 
-    return bytes(
-        pdf.output(dest="S")
-    )
+    return bytes(pdf.output(dest="S"))
 
 
 # ============================================================
@@ -956,23 +723,11 @@ ajudantes_lista = [
     if a.get("nome")
 ]
 
-
 if not motoristas_lista:
-
-    motoristas_lista = [
-        "Carlos Silva",
-        "João Pereira",
-        "Maurício",
-        "Cícero Taveira"
-    ]
-
+    motoristas_lista = ["Carlos Silva", "João Pereira", "Maurício", "Cícero Taveira"]
 
 if not ajudantes_lista:
-
-    ajudantes_lista = [
-        "Pedrinho",
-        "Lucas Souza"
-    ]
+    ajudantes_lista = ["Pedrinho", "Lucas Souza"]
 
 
 # ============================================================
@@ -995,29 +750,16 @@ menu = st.radio(
 # BARRA DE ATUALIZAÇÃO
 # ============================================================
 
-col_atualizacao1, col_atualizacao2 = st.columns(
-    [6, 1]
-)
+col_atualizacao1, col_atualizacao2 = st.columns([6, 1])
 
 with col_atualizacao1:
-
     if "ultima_atualizacao" in st.session_state:
-
-        st.caption(
-            f"🕐 Última atualização: "
-            f"{st.session_state['ultima_atualizacao']}"
-        )
+        st.caption(f"🕐 Última atualização: {st.session_state['ultima_atualizacao']}")
 
 with col_atualizacao2:
-
-    if st.button(
-        "🔄 Atualizar",
-        use_container_width=True
-    ):
-
+    if st.button("🔄 Atualizar", use_container_width=True):
         atualizar_dados()
         st.rerun()
-
 
 st.markdown("---")
 
@@ -1028,243 +770,118 @@ st.markdown("---")
 
 if menu == "📋 Painel (Kanban)":
 
-    st.subheader(
-        "📊 Torre de Controle da Operação"
-    )
+    st.subheader("📊 Torre de Controle da Operação")
 
     hoje = datetime.date.today()
-
     total_cargas = len(cargas_lista)
 
-    total_aguardando = sum(
-        1
-        for c in cargas_lista
-        if c.get("status") == "Aguardando Carregamento"
-    )
+    total_aguardando = sum(1 for c in cargas_lista if c.get("status") == "Aguardando Carregamento")
+    total_patio = sum(1 for c in cargas_lista if c.get("status") == "Carregado / No Pátio")
+    total_transito = sum(1 for c in cargas_lista if c.get("status") == "Em Trânsito / Viagem Iniciada")
+    total_entregues = sum(1 for c in cargas_lista if c.get("status") == "Entregue / Concluído")
+    total_atrasadas = sum(1 for c in cargas_lista if carga_atrasada(c))
+    total_saida_hoje = sum(1 for c in cargas_lista if carga_saida_hoje(c))
+    total_entrega_hoje = sum(1 for c in cargas_lista if carga_entrega_hoje(c))
 
-    total_patio = sum(
-        1
-        for c in cargas_lista
-        if c.get("status") == "Carregado / No Pátio"
-    )
-
-    total_transito = sum(
-        1
-        for c in cargas_lista
-        if c.get("status") == "Em Trânsito / Viagem Iniciada"
-    )
-
-    total_entregues = sum(
-        1
-        for c in cargas_lista
-        if c.get("status") == "Entregue / Concluído"
-    )
-
-    total_atrasadas = sum(
-        1
-        for c in cargas_lista
-        if carga_atrasada(c)
-    )
-
-    total_saida_hoje = sum(
-        1
-        for c in cargas_lista
-        if carga_saida_hoje(c)
-    )
-
-    total_entrega_hoje = sum(
-        1
-        for c in cargas_lista
-        if carga_entrega_hoje(c)
-    )
-
-
-    # ========================================================
     # INDICADORES
-    # ========================================================
-
     m1, m2, m3, m4, m5 = st.columns(5)
 
     with m1:
-
-        st.markdown(
-            f"""
+        st.markdown(f"""
             <div class="metric-card metric-blue">
                 <div class="metric-title">TOTAL DE CARGAS</div>
                 <div class="metric-value">{total_cargas}</div>
                 <div class="metric-subtitle">Planejamentos cadastrados</div>
             </div>
-            """,
-            unsafe_allow_html=True
-        )
+            """, unsafe_allow_html=True)
 
     with m2:
-
-        st.markdown(
-            f"""
+        st.markdown(f"""
             <div class="metric-card metric-yellow">
                 <div class="metric-title">AGUARDANDO</div>
                 <div class="metric-value">{total_aguardando}</div>
                 <div class="metric-subtitle">Aguardando carregamento</div>
             </div>
-            """,
-            unsafe_allow_html=True
-        )
+            """, unsafe_allow_html=True)
 
     with m3:
-
-        st.markdown(
-            f"""
+        st.markdown(f"""
             <div class="metric-card metric-green">
                 <div class="metric-title">EM TRÂNSITO</div>
                 <div class="metric-value">{total_transito}</div>
                 <div class="metric-subtitle">Viagens iniciadas</div>
             </div>
-            """,
-            unsafe_allow_html=True
-        )
+            """, unsafe_allow_html=True)
 
     with m4:
-
-        st.markdown(
-            f"""
+        st.markdown(f"""
             <div class="metric-card metric-purple">
                 <div class="metric-title">ENTREGUES</div>
                 <div class="metric-value">{total_entregues}</div>
                 <div class="metric-subtitle">Operações concluídas</div>
             </div>
-            """,
-            unsafe_allow_html=True
-        )
+            """, unsafe_allow_html=True)
 
     with m5:
-
-        st.markdown(
-            f"""
+        st.markdown(f"""
             <div class="metric-card metric-red">
                 <div class="metric-title">ATRASADAS</div>
                 <div class="metric-value">{total_atrasadas}</div>
                 <div class="metric-subtitle">Precisam de atenção</div>
             </div>
-            """,
-            unsafe_allow_html=True
-        )
-
+            """, unsafe_allow_html=True)
 
     st.markdown("")
 
-
-    # ========================================================
     # ALERTAS
-    # ========================================================
-
     if total_atrasadas > 0:
-
-        st.markdown(
-            f"""
+        st.markdown(f"""
             <div class="alert-box alert-red">
-                🔴 <b>Atenção:</b> existem
-                <b>{total_atrasadas}</b> carga(s)
-                com prazo de entrega vencido.
+                🔴 <b>Atenção:</b> existem <b>{total_atrasadas}</b> carga(s) com prazo de entrega vencido.
             </div>
-            """,
-            unsafe_allow_html=True
-        )
-
+            """, unsafe_allow_html=True)
 
     if total_saida_hoje > 0:
-
-        st.markdown(
-            f"""
+        st.markdown(f"""
             <div class="alert-box alert-yellow">
-                🟠 <b>Operação de hoje:</b>
-                <b>{total_saida_hoje}</b> carga(s)
-                possuem saída prevista para hoje.
+                🟠 <b>Operação de hoje:</b> <b>{total_saida_hoje}</b> carga(s) possuem saída prevista para hoje.
             </div>
-            """,
-            unsafe_allow_html=True
-        )
-
+            """, unsafe_allow_html=True)
 
     if total_entrega_hoje > 0:
-
-        st.markdown(
-            f"""
+        st.markdown(f"""
             <div class="alert-box alert-yellow">
-                📦 <b>Entregas de hoje:</b>
-                <b>{total_entrega_hoje}</b> carga(s)
-                possuem entrega prevista para hoje.
+                📦 <b>Entregas de hoje:</b> <b>{total_entrega_hoje}</b> carga(s) possuem entrega prevista para hoje.
             </div>
-            """,
-            unsafe_allow_html=True
-        )
+            """, unsafe_allow_html=True)
 
-
-    if (
-        total_atrasadas == 0
-        and total_saida_hoje == 0
-        and total_entrega_hoje == 0
-        and total_cargas > 0
-    ):
-
-        st.markdown(
-            """
+    if total_atrasadas == 0 and total_saida_hoje == 0 and total_entrega_hoje == 0 and total_cargas > 0:
+        st.markdown("""
             <div class="alert-box alert-green">
-                🟢 <b>Operação normal:</b>
-                nenhuma carga atrasada ou com alerta para hoje.
+                🟢 <b>Operação normal:</b> nenhuma carga atrasada ou com alerta para hoje.
             </div>
-            """,
-            unsafe_allow_html=True
-        )
+            """, unsafe_allow_html=True)
 
-
-    # ========================================================
     # FILTROS
-    # ========================================================
-
     st.markdown("### 🔎 Filtros da Operação")
-
     col_f1, col_f2 = st.columns([2, 3])
 
     with col_f1:
-
-        motoristas_filtro_opcoes = [
-            "Todos os Motoristas"
-        ] + motoristas_lista
-
-        motorista_selecionado = st.selectbox(
-            "Filtrar por Motorista",
-            motoristas_filtro_opcoes
-        )
+        motoristas_filtro_opcoes = ["Todos os Motoristas"] + motoristas_lista
+        motorista_selecionado = st.selectbox("Filtrar por Motorista", motoristas_filtro_opcoes)
 
     with col_f2:
-
-        pesquisa = st.text_input(
-            "🔎 Pesquisar",
-            placeholder="ID, motorista, destino ou observação..."
-        )
-
-    # ========================================================
-    # FILTRAGEM
-    # ========================================================
+        pesquisa = st.text_input("🔎 Pesquisar", placeholder="ID, motorista, destino ou observação...")
 
     cargas_filtradas_periodo = list(cargas_lista)
 
     if motorista_selecionado != "Todos os Motoristas":
-
-        cargas_filtradas_periodo = [
-            c
-            for c in cargas_filtradas_periodo
-            if c.get("motorista") == motorista_selecionado
-        ]
+        cargas_filtradas_periodo = [c for c in cargas_filtradas_periodo if c.get("motorista") == motorista_selecionado]
 
     if pesquisa:
-
         termo = pesquisa.lower().strip()
-
         cargas_filtradas_periodo = [
-            c
-            for c in cargas_filtradas_periodo
+            c for c in cargas_filtradas_periodo
             if (
                 termo in str(c.get("id", "")).lower()
                 or termo in str(c.get("motorista", "")).lower()
@@ -1274,15 +891,7 @@ if menu == "📋 Painel (Kanban)":
             )
         ]
 
-    st.caption(
-        f"🔎 {len(cargas_filtradas_periodo)} "
-        f"carga(s) encontrada(s) com os filtros atuais."
-    )
-
-
-    # ========================================================
-    # STATUS
-    # ========================================================
+    st.caption(f"🔎 {len(cargas_filtradas_periodo)} carga(s) encontrada(s) com os filtros atuais.")
 
     colunas_status = [
         "Aguardando Carregamento",
@@ -1291,139 +900,44 @@ if menu == "📋 Painel (Kanban)":
         "Entregue / Concluído",
     ]
 
+    paleta_cores = ["#58a6ff", "#3fb950", "#d29922", "#bc8cff", "#f85149", "#39c5bb", "#f0883e", "#db61a2"]
+    mapa_cores = {mot: paleta_cores[i % len(paleta_cores)] for i, mot in enumerate(motoristas_lista)}
 
-    paleta_cores = [
-        "#58a6ff",
-        "#3fb950",
-        "#d29922",
-        "#bc8cff",
-        "#f85149",
-        "#39c5bb",
-        "#f0883e",
-        "#db61a2"
-    ]
-
-
-    mapa_cores = {
-        mot: paleta_cores[
-            i % len(paleta_cores)
-        ]
-        for i, mot
-        in enumerate(motoristas_lista)
-    }
-
-
-    # ========================================================
     # KANBAN
-    # ========================================================
+    cols = st.columns(len(colunas_status))
 
-    cols = st.columns(
-        len(colunas_status)
-    )
-
-
-    for idx, status in enumerate(
-        colunas_status
-    ):
-
+    for idx, status in enumerate(colunas_status):
         with cols[idx]:
-
-            quantidade_status = sum(
-                1
-                for c in cargas_filtradas_periodo
-                if c.get("status") == status
-            )
-
-            st.markdown(
-                f"""
+            quantidade_status = sum(1 for c in cargas_filtradas_periodo if c.get("status") == status)
+            st.markdown(f"""
                 <div class='kanban-header'>
                     <div>{status}</div>
                     <div class="kanban-count">{quantidade_status} carga(s)</div>
                 </div>
-                """,
-                unsafe_allow_html=True
-            )
+                """, unsafe_allow_html=True)
 
-
-            cargas_status_filtradas = [
-                c
-                for c in cargas_filtradas_periodo
-                if c.get("status") == status
-            ]
-
+            cargas_status_filtradas = [c for c in cargas_filtradas_periodo if c.get("status") == status]
 
             for carga in cargas_status_filtradas:
-
                 carga_id = carga.get("id")
-
-                motorista_atual = carga.get(
-                    "motorista",
-                    ""
-                )
-
-                cor_motorista = mapa_cores.get(
-                    motorista_atual,
-                    "#8b949e"
-                )
-
-                saida_br = formatar_data_br(
-                    carga.get("data_saida")
-                )
-
-                entrega_br = formatar_data_br(
-                    carga.get("data_entrega")
-                )
-
-                ajudantes = carga.get(
-                    "ajudantes",
-                    []
-                )
-
-                if isinstance(
-                    ajudantes,
-                    list
-                ):
-
-                    ajudantes_texto = ", ".join(
-                        map(str, ajudantes)
-                    )
-
+                motorista_atual = carga.get("motorista", "")
+                cor_motorista = mapa_cores.get(motorista_atual, "#8b949e")
+                saida_br = formatar_data_br(carga.get("data_saida"))
+                entrega_br = formatar_data_br(carga.get("data_entrega"))
+                ajudantes = carga.get("ajudantes", [])
+                
+                if isinstance(ajudantes, list):
+                    ajudantes_texto = ", ".join(map(str, ajudantes))
                 else:
+                    ajudantes_texto = str(ajudantes)
 
-                    ajudantes_texto = str(
-                        ajudantes
-                    )
-
-
-                atrasada = carga_atrasada(
-                    carga
-                )
-
-                saida_hoje = carga_saida_hoje(
-                    carga
-                )
-
-                entrega_hoje = carga_entrega_hoje(
-                    carga
-                )
-
-                prazo_texto = texto_prazo(
-                    carga
-                )
-
-
-                # ==================================================
-                # CARD (CONTAINER ÚNICO E ORGANIZADO)
-                # ==================================================
+                atrasada = carga_atrasada(carga)
+                saida_hoje = carga_saida_hoje(carga)
+                entrega_hoje = carga_entrega_hoje(carga)
+                prazo_texto = texto_prazo(carga)
 
                 with st.container():
-
-                    cor_borda = (
-                        "#f85149"
-                        if atrasada
-                        else cor_motorista
-                    )
-
+                    cor_borda = "#f85149" if atrasada else cor_motorista
                     badges = ""
 
                     if atrasada:
@@ -1438,21 +952,11 @@ if menu == "📋 Painel (Kanban)":
                     if prazo_texto:
                         badges += f'<span class="badge badge-blue">{prazo_texto}</span>'
 
-                    observacoes = str(
-                        carga.get("observacoes", "")
-                    ).strip()
+                    observacoes = str(carga.get("observacoes", "")).strip()
+                    ajudantes_html = f'<div class="card-meta">👥 Ajudantes: <strong>{ajudantes_texto}</strong></div>' if ajudantes_texto.strip() else ""
+                    observacoes_html = f'<div class="card-meta">📝 Obs.: <strong>{observacoes}</strong></div>' if observacoes else ""
 
-                    ajudantes_html = ""
-                    if ajudantes_texto.strip():
-                        ajudantes_html = f'<div class="card-meta">👥 Ajudantes: <strong>{ajudantes_texto}</strong></div>'
-
-                    observacoes_html = ""
-                    if observacoes:
-                        observacoes_html = f'<div class="card-meta">📝 Obs.: <strong>{observacoes}</strong></div>'
-
-                    # Renderiza o cartão visual
-                    render_html(
-                        f"""
+                    render_html(f"""
                         <div class="kanban-card" style="border-left:3px solid {cor_borda};">
                             <div>{badges}</div>
                             <div class="card-id">📌 PLANEJAMENTO #{carga_id}</div>
@@ -1464,310 +968,105 @@ if menu == "📋 Painel (Kanban)":
                             {ajudantes_html}
                             {observacoes_html}
                         </div>
-                        """
-                    )
+                        """)
 
-                    # Botões de Ação (Editar / Excluir) alinhados de forma compacta
-                    c_btn_e, c_btn_d = st.columns(2)
+                    # ==================================================
+                    # SELETOR DE STATUS COMPACTO E BOTÕES DE AÇÃO
+                    # ==================================================
+                    col_sel_status, col_btn_edit, col_btn_del = st.columns([3, 1, 1])
 
-                    with c_btn_e:
-                        if st.button(
-                            "✏️ Editar",
-                            key=f"btn_edit_{carga_id}",
-                            use_container_width=True
-                        ):
-                            st.session_state[
-                                f"editando_{carga_id}"
-                            ] = not st.session_state.get(
-                                f"editando_{carga_id}",
-                                False
-                            )
-
-                    with c_btn_d:
-                        if st.button(
-                            "🗑️ Excluir",
-                            key=f"btn_del_{carga_id}",
-                            use_container_width=True
-                        ):
-                            st.session_state[
-                                f"confirmar_exclusao_{carga_id}"
-                            ] = True
-
-                    # Confirmação de exclusão
-                    if st.session_state.get(
-                        f"confirmar_exclusao_{carga_id}",
-                        False
-                    ):
-                        st.warning(
-                            f"Tem certeza que deseja excluir "
-                            f"a carga/planejamento {carga_id}?"
+                    with col_sel_status:
+                        novo_status_selecionado = st.selectbox(
+                            "Mover para:",
+                            colunas_status,
+                            index=colunas_status.index(status) if status in colunas_status else 0,
+                            key=f"select_status_{carga_id}",
+                            label_visibility="collapsed"
                         )
-
-                        cx1, cx2 = st.columns(2)
-                        with cx1:
-                            if st.button(
-                                "Sim, excluir",
-                                key=f"confirm_del_{carga_id}",
-                                type="primary"
-                            ):
-                                sucesso = deletar_documento(
-                                    "cargas",
-                                    carga_id
-                                )
-                                if sucesso:
-                                    st.session_state[
-                                        "cargas"
-                                    ] = [
-                                        c
-                                        for c in cargas_lista
-                                        if c.get("id") != carga_id
-                                    ]
-                                    st.session_state[
-                                        f"confirmar_exclusao_{carga_id}"
-                                    ] = False
-                                    st.success("Carga excluída.")
-                                    st.rerun()
-
-                        with cx2:
-                            if st.button(
-                                "Cancelar",
-                                key=f"cancel_del_{carga_id}"
-                            ):
-                                st.session_state[
-                                    f"confirmar_exclusao_{carga_id}"
-                                ] = False
+                        
+                        if novo_status_selecionado != status:
+                            campos_status = {"status": novo_status_selecionado}
+                            if novo_status_selecionado == "Entregue / Concluído":
+                                campos_status["data_conclusao"] = str(datetime.date.today())
+                            
+                            sucesso = atualizar_campos_documento("cargas", carga_id, campos_status)
+                            if sucesso:
+                                carga["status"] = novo_status_selecionado
+                                if "data_conclusao" in campos_status:
+                                    carga["data_conclusao"] = campos_status["data_conclusao"]
+                                st.session_state[f"editando_{carga_id}"] = False
                                 st.rerun()
 
-                    # ==================================================
-                    # BOTÕES DE MOVIMENTAÇÃO (VOLTAR / AVANÇAR)
-                    # ==================================================
+                    with col_btn_edit:
+                        if st.button("✏️", key=f"btn_edit_{carga_id}", help="Editar Carga", use_container_width=True):
+                            st.session_state[f"editando_{carga_id}"] = not st.session_state.get(f"editando_{carga_id}", False)
 
-                    indice_status = (
-                        colunas_status.index(status)
-                        if status in colunas_status
-                        else 0
-                    )
+                    with col_btn_del:
+                        if st.button("🗑️", key=f"btn_del_{carga_id}", help="Excluir Carga", use_container_width=True):
+                            st.session_state[f"confirmar_exclusao_{carga_id}"] = True
 
-                    mov1, mov2 = st.columns(2)
-
-                    with mov1:
-                        if indice_status > 0:
-                            if st.button(
-                                "⬅️ Voltar",
-                                key=f"status_voltar_{carga_id}",
-                                use_container_width=True
-                            ):
-                                status_anterior = colunas_status[
-                                    indice_status - 1
-                                ]
-                                campos_status = {
-                                    "status": status_anterior
-                                }
-                                sucesso = atualizar_campos_documento(
-                                    "cargas",
-                                    carga_id,
-                                    campos_status
-                                )
+                    # Confirmação de exclusão
+                    if st.session_state.get(f"confirmar_exclusao_{carga_id}", False):
+                        st.warning(f"Tem certeza que deseja excluir a carga/planejamento {carga_id}?")
+                        cx1, cx2 = st.columns(2)
+                        with cx1:
+                            if st.button("Sim, excluir", key=f"confirm_del_{carga_id}", type="primary"):
+                                sucesso = deletar_documento("cargas", carga_id)
                                 if sucesso:
-                                    carga["status"] = status_anterior
-                                    st.session_state[
-                                        f"editando_{carga_id}"
-                                    ] = False
+                                    st.session_state["cargas"] = [c for c in cargas_lista if c.get("id") != carga_id]
+                                    st.session_state[f"confirmar_exclusao_{carga_id}"] = False
+                                    st.success("Carga excluída.")
                                     st.rerun()
-                        else:
-                            st.button(
-                                "⬅️ Voltar",
-                                key=f"status_voltar_disabled_{carga_id}",
-                                disabled=True,
-                                use_container_width=True
-                            )
-
-                    with mov2:
-                        if indice_status < len(colunas_status) - 1:
-                            if st.button(
-                                "Avançar ➡️",
-                                key=f"status_avancar_{carga_id}",
-                                type="primary",
-                                use_container_width=True
-                            ):
-                                proximo_status = colunas_status[
-                                    indice_status + 1
-                                ]
-                                campos_status = {
-                                    "status": proximo_status
-                                }
-                                if (
-                                    proximo_status
-                                    == "Entregue / Concluído"
-                                ):
-                                    campos_status[
-                                        "data_conclusao"
-                                    ] = str(
-                                        datetime.date.today()
-                                    )
-
-                                sucesso = atualizar_campos_documento(
-                                    "cargas",
-                                    carga_id,
-                                    campos_status
-                                )
-                                if sucesso:
-                                    carga["status"] = proximo_status
-                                    if (
-                                        "data_conclusao"
-                                        in campos_status
-                                    ):
-                                        carga[
-                                            "data_conclusao"
-                                        ] = campos_status[
-                                            "data_conclusao"
-                                        ]
-                                    st.session_state[
-                                        f"editando_{carga_id}"
-                                    ] = False
-                                    st.rerun()
-                        else:
-                            st.button(
-                                "✅ Concluído",
-                                key=f"status_concluido_{carga_id}",
-                                disabled=True,
-                                use_container_width=True
-                            )
+                        with cx2:
+                            if st.button("Cancelar", key=f"cancel_del_{carga_id}"):
+                                st.session_state[f"confirmar_exclusao_{carga_id}"] = False
+                                st.rerun()
 
                     st.markdown("<hr style='margin: 10px 0; border-color: #243145;'>", unsafe_allow_html=True)
 
                     # ==================================================
                     # FORMULÁRIO DE EDIÇÃO
                     # ==================================================
-
-                    if st.session_state.get(
-                        f"editando_{carga_id}",
-                        False
-                    ):
-
-                        with st.form(
-                            key=f"form_edit_{carga_id}"
-                        ):
-
-                            st.markdown(
-                                f"**✏️ Editando Planejamento #{carga_id}**"
-                            )
-
-                            mot_idx = (
-                                motoristas_lista.index(
-                                    carga.get("motorista")
-                                )
-                                if carga.get("motorista")
-                                in motoristas_lista
-                                else 0
-                            )
-
-                            novo_mot = st.selectbox(
-                                "Motorista",
-                                motoristas_lista
-                                if motoristas_lista
-                                else [""],
-                                index=mot_idx
-                            )
-
-                            novo_dest = st.text_input(
-                                "Destino",
-                                value=carga.get(
-                                    "destino",
-                                    ""
-                                )
-                            )
-
-                            novo_obs = st.text_area(
-                                "Observações / Rota",
-                                value=carga.get(
-                                    "observacoes",
-                                    ""
-                                )
-                            )
-
-                            ajudantes_existentes = carga.get(
-                                "ajudantes",
-                                []
-                            )
-
-                            if not isinstance(
-                                ajudantes_existentes,
-                                list
-                            ):
+                    if st.session_state.get(f"editando_{carga_id}", False):
+                        with st.form(key=f"form_edit_{carga_id}"):
+                            st.markdown(f"**✏️ Editando Planejamento #{carga_id}**")
+                            
+                            mot_idx = motoristas_lista.index(carga.get("motorista")) if carga.get("motorista") in motoristas_lista else 0
+                            novo_mot = st.selectbox("Motorista", motoristas_lista if motoristas_lista else [""], index=mot_idx)
+                            novo_dest = st.text_input("Destino", value=carga.get("destino", ""))
+                            novo_obs = st.text_area("Observações / Rota", value=carga.get("observacoes", ""))
+                            
+                            ajudantes_existentes = carga.get("ajudantes", [])
+                            if not isinstance(ajudantes_existentes, list):
                                 ajudantes_existentes = []
 
                             ajudantes_editados = st.multiselect(
                                 "Ajudantes",
                                 ajudantes_lista,
-                                default=[
-                                    a
-                                    for a in ajudantes_existentes
-                                    if a in ajudantes_lista
-                                ]
+                                default=[a for a in ajudantes_existentes if a in ajudantes_lista]
                             )
 
-                            dt_saida_val = (
-                                converter_para_data(
-                                    carga.get(
-                                        "data_saida"
-                                    )
-                                )
-                                or datetime.date.today()
-                            )
+                            dt_saida_val = converter_para_data(carga.get("data_saida")) or datetime.date.today()
+                            dt_ent_val = converter_para_data(carga.get("data_entrega")) or datetime.date.today()
 
-                            dt_ent_val = (
-                                converter_para_data(
-                                    carga.get(
-                                        "data_entrega"
-                                    )
-                                )
-                                or datetime.date.today()
-                            )
+                            nova_saida = st.date_input("Data Saída", value=dt_saida_val, key=f"saida_{carga_id}")
+                            nova_entrega = st.date_input("Data Entrega", value=dt_ent_val, key=f"entrega_{carga_id}")
 
-                            nova_saida = st.date_input(
-                                "Data Saída",
-                                value=dt_saida_val,
-                                key=f"saida_{carga_id}"
-                            )
-
-                            nova_entrega = st.date_input(
-                                "Data Entrega",
-                                value=dt_ent_val,
-                                key=f"entrega_{carga_id}"
-                            )
-
-                            salvar_edicao = st.form_submit_button(
-                                "💾 Salvar Alterações"
-                            )
+                            salvar_edicao = st.form_submit_button("💾 Salvar Alterações")
 
                             if salvar_edicao:
                                 carga["motorista"] = novo_mot
                                 carga["destino"] = novo_dest
                                 carga["observacoes"] = novo_obs
-                                carga["ajudantes"] = (
-                                    ajudantes_editados
-                                )
-                                carga["data_saida"] = str(
-                                    nova_saida
-                                )
-                                carga["data_entrega"] = str(
-                                    nova_entrega
-                                )
+                                carga["ajudantes"] = ajudantes_editados
+                                carga["data_saida"] = str(nova_saida)
+                                carga["data_entrega"] = str(nova_entrega)
 
-                                sucesso = salvar_documento(
-                                    "cargas",
-                                    carga_id,
-                                    carga
-                                )
+                                sucesso = salvar_documento("cargas", carga_id, carga)
 
                                 if sucesso:
-                                    st.session_state[
-                                        f"editando_{carga_id}"
-                                    ] = False
-                                    st.success(
-                                        "Carga atualizada com sucesso!"
-                                    )
+                                    st.session_state[f"editando_{carga_id}"] = False
+                                    st.success("Carga atualizada com sucesso!")
                                     st.rerun()
 
 
@@ -1777,87 +1076,27 @@ if menu == "📋 Painel (Kanban)":
 
 elif menu == "➕ Nova Carga":
 
-    st.subheader(
-        "➕ Cadastrar Novo Agendamento de Carga"
-    )
+    st.subheader("➕ Cadastrar Novo Agendamento de Carga")
+    st.info("📌 O número do planejamento é fornecido pelo seu sistema de montagem de cargas. Digite exatamente o número recebido.")
 
-    st.info(
-        "📌 O número do planejamento é fornecido pelo "
-        "seu sistema de montagem de cargas. "
-        "Digite exatamente o número recebido."
-    )
-
-
-    with st.form(
-        "form_nova_carga"
-    ):
-
-        col_id_manual, _ = st.columns(
-            [2, 2]
-        )
-
+    with st.form("form_nova_carga"):
+        col_id_manual, _ = st.columns([2, 2])
 
         with col_id_manual:
-
-            id_planejamento = st.text_input(
-                "Número do Planejamento / ID da Carga",
-                placeholder="Ex: 1042"
-            )
-
+            id_planejamento = st.text_input("Número do Planejamento / ID da Carga", placeholder="Ex: 1042")
 
         col1, col2 = st.columns(2)
 
-
         with col1:
-
-            motorista = st.selectbox(
-                "Motorista Responsável",
-                motoristas_lista
-                if motoristas_lista
-                else ["Nenhum cadastrado"]
-            )
-
-
-            destino = st.text_input(
-                "Região / Cidades de Destino",
-                placeholder=(
-                    "Ex: Uberaba, Araxá "
-                    "(Múltiplas entregas)"
-                )
-            )
-
-
-            observacoes = st.text_area(
-                "Observações / Rota",
-                placeholder=(
-                    "Ex: Carga com entregas "
-                    "em lojas diferentes"
-                )
-            )
-
+            motorista = st.selectbox("Motorista Responsável", motoristas_lista if motoristas_lista else ["Nenhum cadastrado"])
+            destino = st.text_input("Região / Cidades de Destino", placeholder="Ex: Uberaba, Araxá (Múltiplas entregas)")
+            observacoes = st.text_area("Observações / Rota", placeholder="Ex: Carga com entregas em lojas diferentes")
 
         with col2:
-
-            ajudantes = st.multiselect(
-                "Ajudantes da Viagem",
-                ajudantes_lista
-            )
-
-
-            data_carga = st.date_input(
-                "Data do Carregamento"
-            )
-
-
-            data_saida = st.date_input(
-                "Data de Saída"
-            )
-
-
-            data_entrega = st.date_input(
-                "Data Prevista de Entrega"
-            )
-
+            ajudantes = st.multiselect("Ajudantes da Viagem", ajudantes_lista)
+            data_carga = st.date_input("Data do Carregamento")
+            data_saida = st.date_input("Data de Saída")
+            data_entrega = st.date_input("Data Prevista de Entrega")
 
         status_inicial = st.selectbox(
             "Status Inicial",
@@ -1869,47 +1108,17 @@ elif menu == "➕ Nova Carga":
             ],
         )
 
-
-        submit = st.form_submit_button(
-            "💾 Salvar e Agendar Carga",
-            type="primary"
-        )
-
+        submit = st.form_submit_button("💾 Salvar e Agendar Carga", type="primary")
 
         if submit:
+            id_planejamento = str(id_planejamento).strip()
 
-            id_planejamento = str(
-                id_planejamento
-            ).strip()
+            if id_planejamento and destino and motorista:
+                ids_existentes = [str(c.get("id")) for c in cargas_lista]
 
-
-            if (
-                id_planejamento
-                and destino
-                and motorista
-            ):
-
-                ids_existentes = [
-                    str(c.get("id"))
-                    for c in cargas_lista
-                ]
-
-
-                if (
-                    id_planejamento
-                    in ids_existentes
-                ):
-
-                    st.error(
-                        f"Já existe uma carga cadastrada "
-                        f"com o ID/Planejamento "
-                        f"'{id_planejamento}'. "
-                        f"Use o número correto ou verifique "
-                        f"se esta carga já foi cadastrada."
-                    )
-
+                if id_planejamento in ids_existentes:
+                    st.error(f"Já existe uma carga cadastrada com o ID/Planejamento '{id_planejamento}'.")
                 else:
-
                     nova_carga = {
                         "id": id_planejamento,
                         "motorista": motorista,
@@ -1922,36 +1131,14 @@ elif menu == "➕ Nova Carga":
                         "status": status_inicial,
                     }
 
-
-                    sucesso = salvar_documento(
-                        "cargas",
-                        id_planejamento,
-                        nova_carga
-                    )
-
+                    sucesso = salvar_documento("cargas", id_planejamento, nova_carga)
 
                     if sucesso:
-
-                        st.session_state[
-                            "cargas"
-                        ].append(
-                            nova_carga
-                        )
-
-                        st.success(
-                            f"✅ Carga/Planejamento "
-                            f"{id_planejamento} cadastrada "
-                            f"com sucesso!"
-                        )
-
+                        st.session_state["cargas"].append(nova_carga)
+                        st.success(f"✅ Carga/Planejamento {id_planejamento} cadastrada com sucesso!")
                         st.rerun()
-
             else:
-
-                st.error(
-                    "Preencha o Número do Planejamento, "
-                    "o Motorista e a Região de Destino."
-                )
+                st.error("Preencha o Número do Planejamento, o Motorista e a Região de Destino.")
 
 
 # ============================================================
@@ -1960,377 +1147,117 @@ elif menu == "➕ Nova Carga":
 
 elif menu == "👥 Cadastros (Equipe)":
 
-    st.subheader(
-        "👥 Gerenciamento de Motoristas e Ajudantes"
-    )
-
-
+    st.subheader("👥 Gerenciamento de Motoristas e Ajudantes")
     col1, col2 = st.columns(2)
 
-
-    # ========================================================
-    # MOTORISTAS
-    # ========================================================
-
     with col1:
-
         st.markdown("### 🚚 Motoristas")
 
-
-        with st.form(
-            "form_cad_mot",
-            clear_on_submit=True
-        ):
-
-            novo_mot = st.text_input(
-                "Adicionar novo motorista"
-            )
-
-
-            cad_mot_btn = st.form_submit_button(
-                "Cadastrar Motorista"
-            )
-
+        with st.form("form_cad_mot", clear_on_submit=True):
+            novo_mot = st.text_input("Adicionar novo motorista")
+            cad_mot_btn = st.form_submit_button("Cadastrar Motorista")
 
             if cad_mot_btn and novo_mot:
-
                 novo_mot = novo_mot.strip()
-
-
-                nomes_existentes = [
-                    str(m.get("nome", "")).lower()
-                    for m
-                    in st.session_state["motoristas"]
-                ]
-
+                nomes_existentes = [str(m.get("nome", "")).lower() for m in st.session_state["motoristas"]]
 
                 if novo_mot.lower() in nomes_existentes:
-
-                    st.error(
-                        "Este motorista já está cadastrado."
-                    )
-
+                    st.error("Este motorista já está cadastrado.")
                 else:
-
                     doc_id = f"mot_{int(datetime.datetime.now().timestamp() * 1000)}"
-
-
-                    dados_mot = {
-                        "id": doc_id,
-                        "nome": novo_mot
-                    }
-
-
-                    sucesso = salvar_documento(
-                        "motoristas",
-                        doc_id,
-                        dados_mot
-                    )
-
+                    dados_mot = {"id": doc_id, "nome": novo_mot}
+                    sucesso = salvar_documento("motoristas", doc_id, dados_mot)
 
                     if sucesso:
-
-                        st.session_state[
-                            "motoristas"
-                        ].append(
-                            dados_mot
-                        )
-
-                        st.success(
-                            f"Motorista {novo_mot} adicionado!"
-                        )
-
+                        st.session_state["motoristas"].append(dados_mot)
+                        st.success(f"Motorista {novo_mot} adicionado!")
                         st.rerun()
 
-
         st.markdown("---")
-
-        st.write(
-            "**Motoristas Atuais:**"
-        )
-
+        st.write("**Motoristas Atuais:**")
 
         if not st.session_state["motoristas"]:
+            st.info("Nenhum motorista cadastrado.")
 
-            st.info(
-                "Nenhum motorista cadastrado."
-            )
+        for m_obj in st.session_state["motoristas"]:
+            m_nome = m_obj.get("nome", "")
+            m_id = m_obj.get("id", m_nome)
+            c_mot1, c_mot2 = st.columns([4, 2])
 
+            c_mot1.write(f"🚚 {m_nome}")
 
-        for m_obj in st.session_state[
-            "motoristas"
-        ]:
+            if c_mot2.button("Excluir", key=f"del_mot_{m_id}"):
+                st.session_state[f"confirmar_mot_{m_id}"] = True
 
-            m_nome = m_obj.get(
-                "nome",
-                ""
-            )
-
-            m_id = m_obj.get(
-                "id",
-                m_nome
-            )
-
-
-            c_mot1, c_mot2 = st.columns(
-                [4, 2]
-            )
-
-
-            c_mot1.write(
-                f"🚚 {m_nome}"
-            )
-
-
-            if c_mot2.button(
-                "Excluir",
-                key=f"del_mot_{m_id}"
-            ):
-
-                st.session_state[
-                    f"confirmar_mot_{m_id}"
-                ] = True
-
-
-            if st.session_state.get(
-                f"confirmar_mot_{m_id}",
-                False
-            ):
-
-                st.warning(
-                    f"Excluir o motorista "
-                    f"'{m_nome}'?"
-                )
-
-
+            if st.session_state.get(f"confirmar_mot_{m_id}", False):
+                st.warning(f"Excluir o motorista '{m_nome}'?")
                 cm1, cm2 = st.columns(2)
 
-
                 with cm1:
-
-                    if st.button(
-                        "Confirmar",
-                        key=f"conf_mot_{m_id}"
-                    ):
-
-                        sucesso = deletar_documento(
-                            "motoristas",
-                            m_id
-                        )
-
-
+                    if st.button("Confirmar", key=f"conf_mot_{m_id}"):
+                        sucesso = deletar_documento("motoristas", m_id)
                         if sucesso:
-
-                            st.session_state[
-                                "motoristas"
-                            ] = [
-                                m
-                                for m
-                                in st.session_state[
-                                    "motoristas"
-                                ]
-                                if m.get("id")
-                                != m_id
-                            ]
-
-
+                            st.session_state["motoristas"] = [m for m in st.session_state["motoristas"] if m.get("id") != m_id]
                             st.rerun()
-
 
                 with cm2:
-
-                    if st.button(
-                        "Cancelar",
-                        key=f"canc_mot_{m_id}"
-                    ):
-
-                        st.session_state[
-                            f"confirmar_mot_{m_id}"
-                        ] = False
-
+                    if st.button("Cancelar", key=f"canc_mot_{m_id}"):
+                        st.session_state[f"confirmar_mot_{m_id}"] = False
                         st.rerun()
-
-
-    # ========================================================
-    # AJUDANTES
-    # ========================================================
 
     with col2:
-
         st.markdown("### 👥 Ajudantes")
 
-
-        with st.form(
-            "form_cad_aju",
-            clear_on_submit=True
-        ):
-
-            novo_aju = st.text_input(
-                "Adicionar novo ajudante"
-            )
-
-
-            cad_aju_btn = st.form_submit_button(
-                "Cadastrar Ajudante"
-            )
-
+        with st.form("form_cad_aju", clear_on_submit=True):
+            novo_aju = st.text_input("Adicionar novo ajudante")
+            cad_aju_btn = st.form_submit_button("Cadastrar Ajudante")
 
             if cad_aju_btn and novo_aju:
-
                 novo_aju = novo_aju.strip()
-
-
-                nomes_existentes = [
-                    str(a.get("nome", "")).lower()
-                    for a
-                    in st.session_state["ajudantes"]
-                ]
-
+                nomes_existentes = [str(a.get("nome", "")).lower() for a in st.session_state["ajudantes"]]
 
                 if novo_aju.lower() in nomes_existentes:
-
-                    st.error(
-                        "Este ajudante já está cadastrado."
-                    )
-
+                    st.error("Este ajudante já está cadastrado.")
                 else:
-
                     doc_id = f"aju_{int(datetime.datetime.now().timestamp() * 1000)}"
-
-
-                    dados_aju = {
-                        "id": doc_id,
-                        "nome": novo_aju
-                    }
-
-
-                    sucesso = salvar_documento(
-                        "ajudantes",
-                        doc_id,
-                        dados_aju
-                    )
-
+                    dados_aju = {"id": doc_id, "nome": novo_aju}
+                    sucesso = salvar_documento("ajudantes", doc_id, dados_aju)
 
                     if sucesso:
-
-                        st.session_state[
-                            "ajudantes"
-                        ].append(
-                            dados_aju
-                        )
-
-                        st.success(
-                            f"Ajudante {novo_aju} adicionado!"
-                        )
-
+                        st.session_state["ajudantes"].append(dados_aju)
+                        st.success(f"Ajudante {novo_aju} adicionado!")
                         st.rerun()
 
-
         st.markdown("---")
-
-        st.write(
-            "**Ajudantes Atuais:**"
-        )
-
+        st.write("**Ajudantes Atuais:**")
 
         if not st.session_state["ajudantes"]:
+            st.info("Nenhum ajudante cadastrado.")
 
-            st.info(
-                "Nenhum ajudante cadastrado."
-            )
+        for a_obj in st.session_state["ajudantes"]:
+            a_nome = a_obj.get("nome", "")
+            a_id = a_obj.get("id", a_nome)
+            c_aju1, c_aju2 = st.columns([4, 2])
 
+            c_aju1.write(f"👤 {a_nome}")
 
-        for a_obj in st.session_state[
-            "ajudantes"
-        ]:
+            if c_aju2.button("Excluir", key=f"del_aju_{a_id}"):
+                st.session_state[f"confirmar_aju_{a_id}"] = True
 
-            a_nome = a_obj.get(
-                "nome",
-                ""
-            )
-
-            a_id = a_obj.get(
-                "id",
-                a_nome
-            )
-
-
-            c_aju1, c_aju2 = st.columns(
-                [4, 2]
-            )
-
-
-            c_aju1.write(
-                f"👤 {a_nome}"
-            )
-
-
-            if c_aju2.button(
-                "Excluir",
-                key=f"del_aju_{a_id}"
-            ):
-
-                st.session_state[
-                    f"confirmar_aju_{a_id}"
-                ] = True
-
-
-            if st.session_state.get(
-                f"confirmar_aju_{a_id}",
-                False
-            ):
-
-                st.warning(
-                    f"Excluir o ajudante "
-                    f"'{a_nome}'?"
-                )
-
-
+            if st.session_state.get(f"confirmar_aju_{a_id}", False):
+                st.warning(f"Excluir o ajudante '{a_nome}'?")
                 ca1, ca2 = st.columns(2)
 
-
                 with ca1:
-
-                    if st.button(
-                        "Confirmar",
-                        key=f"conf_aju_{a_id}"
-                    ):
-
-                        sucesso = deletar_documento(
-                            "ajudantes",
-                            a_id
-                        )
-
-
+                    if st.button("Confirmar", key=f"conf_aju_{a_id}"):
+                        sucesso = deletar_documento("ajudantes", a_id)
                         if sucesso:
-
-                            st.session_state[
-                                "ajudantes"
-                            ] = [
-                                a
-                                for a
-                                in st.session_state[
-                                    "ajudantes"
-                                ]
-                                if a.get("id")
-                                != a_id
-                            ]
-
-
+                            st.session_state["ajudantes"] = [a for a in st.session_state["ajudantes"] if a.get("id") != a_id]
                             st.rerun()
 
-
                 with ca2:
-
-                    if st.button(
-                        "Cancelar",
-                        key=f"canc_aju_{a_id}"
-                    ):
-
-                        st.session_state[
-                            f"confirmar_aju_{a_id}"
-                        ] = False
-
+                    if st.button("Cancelar", key=f"canc_aju_{a_id}"):
+                        st.session_state[f"confirmar_aju_{a_id}"] = False
                         st.rerun()
 
 
@@ -2340,39 +1267,18 @@ elif menu == "👥 Cadastros (Equipe)":
 
 elif menu == "📈 Relatórios":
 
-    st.subheader(
-        "📈 Relatórios e Exportação de Dados"
-    )
-
+    st.subheader("📈 Relatórios e Exportação de Dados")
 
     if not cargas_lista:
-
-        st.info(
-            "Nenhuma carga cadastrada "
-            "para gerar relatórios."
-        )
-
+        st.info("Nenhuma carga cadastrada para gerar relatórios.")
     else:
-
-        st.markdown(
-            "### 🔎 Filtros do Relatório"
-        )
-
-
+        st.markdown("### 🔎 Filtros do Relatório")
         rf1, rf2, rf3 = st.columns(3)
 
-
         with rf1:
-
-            filtro_motorista = st.selectbox(
-                "Motorista",
-                ["Todos"] + motoristas_lista,
-                key="rel_motorista"
-            )
-
+            filtro_motorista = st.selectbox("Motorista", ["Todos"] + motoristas_lista, key="rel_motorista")
 
         with rf2:
-
             filtro_status = st.selectbox(
                 "Status",
                 [
@@ -2385,210 +1291,78 @@ elif menu == "📈 Relatórios":
                 key="rel_status"
             )
 
-
         with rf3:
+            filtro_busca = st.text_input("Pesquisar ID ou destino", placeholder="Ex: 1042 ou Uberaba", key="rel_busca")
 
-            filtro_busca = st.text_input(
-                "Pesquisar ID ou destino",
-                placeholder="Ex: 1042 ou Uberaba",
-                key="rel_busca"
-            )
-
-
-        cargas_relatorio = list(
-            cargas_lista
-        )
-
+        cargas_relatorio = list(cargas_lista)
 
         if filtro_motorista != "Todos":
-
-            cargas_relatorio = [
-                c
-                for c in cargas_relatorio
-                if c.get("motorista")
-                == filtro_motorista
-            ]
-
+            cargas_relatorio = [c for c in cargas_relatorio if c.get("motorista") == filtro_motorista]
 
         if filtro_status != "Todos":
-
-            cargas_relatorio = [
-                c
-                for c in cargas_relatorio
-                if c.get("status")
-                == filtro_status
-            ]
-
+            cargas_relatorio = [c for c in cargas_relatorio if c.get("status") == filtro_status]
 
         if filtro_busca:
-
             termo = filtro_busca.lower().strip()
-
-
             cargas_relatorio = [
-                c
-                for c in cargas_relatorio
-
-                if (
-                    termo
-                    in str(
-                        c.get("id", "")
-                    ).lower()
-
-                    or
-
-                    termo
-                    in str(
-                        c.get("destino", "")
-                    ).lower()
-                )
+                c for c in cargas_relatorio
+                if termo in str(c.get("id", "")).lower() or termo in str(c.get("destino", "")).lower()
             ]
 
-
-        total_relatorio = len(
-            cargas_relatorio
-        )
-
-
-        entregues_relatorio = sum(
-            1
-            for c in cargas_relatorio
-            if c.get("status")
-            == "Entregue / Concluído"
-        )
-
-
-        transito_relatorio = sum(
-            1
-            for c in cargas_relatorio
-            if c.get("status")
-            == "Em Trânsito / Viagem Iniciada"
-        )
-
-
-        atrasadas_relatorio = sum(
-            1
-            for c in cargas_relatorio
-            if carga_atrasada(c)
-        )
-
-
-        percentual_entregues = (
-            (
-                entregues_relatorio
-                / total_relatorio
-            )
-            * 100
-            if total_relatorio
-            else 0
-        )
-
+        total_relatorio = len(cargas_relatorio)
+        entregues_relatorio = sum(1 for c in cargas_relatorio if c.get("status") == "Entregue / Concluído")
+        transito_relatorio = sum(1 for c in cargas_relatorio if c.get("status") == "Em Trânsito / Viagem Iniciada")
+        atrasadas_relatorio = sum(1 for c in cargas_relatorio if carga_atrasada(c))
+        percentual_entregues = ((entregues_relatorio / total_relatorio) * 100) if total_relatorio else 0
 
         r1, r2, r3, r4, r5 = st.columns(5)
 
-
         with r1:
-
-            st.markdown(
-                f"""
+            st.markdown(f"""
                 <div class="metric-card metric-blue">
-                    <div class="metric-title">
-                        CARGAS
-                    </div>
-                    <div class="metric-value">
-                        {total_relatorio}
-                    </div>
-                    <div class="metric-subtitle">
-                        Resultado do filtro
-                    </div>
+                    <div class="metric-title">CARGAS</div>
+                    <div class="metric-value">{total_relatorio}</div>
+                    <div class="metric-subtitle">Resultado do filtro</div>
                 </div>
-                """,
-                unsafe_allow_html=True
-            )
-
+                """, unsafe_allow_html=True)
 
         with r2:
-
-            st.markdown(
-                f"""
+            st.markdown(f"""
                 <div class="metric-card metric-green">
-                    <div class="metric-title">
-                        ENTREGUES
-                    </div>
-                    <div class="metric-value">
-                        {entregues_relatorio}
-                    </div>
-                    <div class="metric-subtitle">
-                        Concluídas
-                    </div>
+                    <div class="metric-title">ENTREGUES</div>
+                    <div class="metric-value">{entregues_relatorio}</div>
+                    <div class="metric-subtitle">Concluídas</div>
                 </div>
-                """,
-                unsafe_allow_html=True
-            )
-
+                """, unsafe_allow_html=True)
 
         with r3:
-
-            st.markdown(
-                f"""
+            st.markdown(f"""
                 <div class="metric-card metric-yellow">
-                    <div class="metric-title">
-                        EM TRÂNSITO
-                    </div>
-                    <div class="metric-value">
-                        {transito_relatorio}
-                    </div>
-                    <div class="metric-subtitle">
-                        Viagens em andamento
-                    </div>
+                    <div class="metric-title">EM TRÂNSITO</div>
+                    <div class="metric-value">{transito_relatorio}</div>
+                    <div class="metric-subtitle">Viagens em andamento</div>
                 </div>
-                """,
-                unsafe_allow_html=True
-            )
-
+                """, unsafe_allow_html=True)
 
         with r4:
-
-            st.markdown(
-                f"""
+            st.markdown(f"""
                 <div class="metric-card metric-red">
-                    <div class="metric-title">
-                        ATRASADAS
-                    </div>
-                    <div class="metric-value">
-                        {atrasadas_relatorio}
-                    </div>
-                    <div class="metric-subtitle">
-                        Fora do prazo
-                    </div>
+                    <div class="metric-title">ATRASADAS</div>
+                    <div class="metric-value">{atrasadas_relatorio}</div>
+                    <div class="metric-subtitle">Fora do prazo</div>
                 </div>
-                """,
-                unsafe_allow_html=True
-            )
-
+                """, unsafe_allow_html=True)
 
         with r5:
-
-            st.markdown(
-                f"""
+            st.markdown(f"""
                 <div class="metric-card metric-purple">
-                    <div class="metric-title">
-                        CONCLUSÃO
-                    </div>
-                    <div class="metric-value">
-                        {percentual_entregues:.1f}%
-                    </div>
-                    <div class="metric-subtitle">
-                        Taxa de entregas
-                    </div>
+                    <div class="metric-title">CONCLUSÃO</div>
+                    <div class="metric-value">{percentual_entregues:.1f}%</div>
+                    <div class="metric-subtitle">Taxa de entregas</div>
                 </div>
-                """,
-                unsafe_allow_html=True
-            )
-
+                """, unsafe_allow_html=True)
 
         st.markdown("---")
-
         st.markdown('<div class="section-title">📊 Visão Gerencial</div>', unsafe_allow_html=True)
 
         cores_status = {
@@ -2684,58 +1458,36 @@ elif menu == "📈 Relatórios":
                 )
             html_evo = f"""
             <div class="chart-card">
-              <div class="chart-heading"><span>Movimentação por Data</span><small>Data de saída/carregamento</small></div>
+              <div class="chart-heading"><span>Movimentação por Date</span><small>Data de saída/carregamento</small></div>
               <div class="evo-chart">{"".join(pontos)}</div>
             </div>"""
             st.markdown(html_evo, unsafe_allow_html=True)
 
         st.markdown(grafico_barras_html("Top Motoristas", motorista_contagem, limite=5), unsafe_allow_html=True)
 
-        st.markdown(
-            "### 📋 Detalhamento das Cargas"
-        )
-
-        df_tabela = preparar_dataframe(
-            cargas_relatorio
-        )
+        st.markdown("### 📋 Detalhamento das Cargas")
+        df_tabela = preparar_dataframe(cargas_relatorio)
 
         if df_tabela.empty:
-            st.info(
-                "Nenhuma carga encontrada "
-                "com os filtros selecionados."
-            )
+            st.info("Nenhuma carga encontrada com os filtros selecionados.")
         else:
-            st.dataframe(
-                df_tabela,
-                use_container_width=True,
-                hide_index=True
-            )
+            st.dataframe(df_tabela, use_container_width=True, hide_index=True)
 
-        st.markdown(
-            "### 📥 Exportar Arquivos"
-        )
-
+        st.markdown("### 📥 Exportar Arquivos")
         col_exp1, col_exp2 = st.columns(2)
 
         with col_exp1:
-            excel_data = gerar_excel_profissional(
-                df_tabela
-            )
+            excel_data = gerar_excel_profissional(df_tabela)
             st.download_button(
                 label="📥 Baixar Planilha Excel (.xlsx)",
                 data=excel_data,
                 file_name="relatorio_de_cargas.xlsx",
-                mime=(
-                    "application/vnd.openxmlformats-officedocument."
-                    "spreadsheetml.sheet"
-                ),
+                mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
                 use_container_width=True
             )
 
         with col_exp2:
-            pdf_bytes = gerar_pdf(
-                df_tabela
-            )
+            pdf_bytes = gerar_pdf(df_tabela)
             st.download_button(
                 label="📄 Baixar Relatório em PDF",
                 data=pdf_bytes,
