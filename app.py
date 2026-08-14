@@ -40,13 +40,13 @@ st.markdown(
 
         .kanban-header {text-align:left; background:linear-gradient(135deg,#182235 0%,#111827 100%); color:#f8fafc!important; padding:13px 14px; border-radius:12px; font-weight:750; font-size:13px; border:1px solid #273449; margin-bottom:10px; box-shadow:0 8px 24px rgba(0,0,0,.14);}
         .kanban-count {color:#71819a!important; font-size:11px; font-weight:600;}
-        .kanban-card {background:linear-gradient(145deg,#172131 0%,#111827 100%); border:1px solid #263449; border-radius:12px; padding:11px 12px; margin:0 0 10px 0; box-shadow:0 10px 26px rgba(0,0,0,.16);}
+        .kanban-card {background:linear-gradient(145deg,#172131 0%,#111827 100%); border:1px solid #263449; border-radius:12px; padding:12px 14px; margin:0 0 12px 0; box-shadow:0 10px 26px rgba(0,0,0,.16);}
         .card-label {color:#73849a; font-size:10px; font-weight:700; text-transform:uppercase; letter-spacing:.7px;}
         .card-id {color:#60a5fa; font-size:12px; font-weight:800;}
-        .card-driver {color:#f8fafc; font-size:13px; font-weight:800; margin:7px 0 8px;}
-        .card-destination {color:#d6deea; font-size:11px; font-weight:600;}
-        .card-meta {color:#a5b3c5; font-size:10px; line-height:1.7;}
-        .card-divider {height:1px; background:#243145; margin:10px 0;}
+        .card-driver {color:#f8fafc; font-size:13px; font-weight:800; margin:6px 0 6px;}
+        .card-destination {color:#d6deea; font-size:11px; font-weight:600; margin-bottom:6px;}
+        .card-meta {color:#a5b3c5; font-size:10px; line-height:1.6;}
+        .card-divider {height:1px; background:#243145; margin:8px 0;}
 
         .metric-card {position:relative; overflow:hidden; background:linear-gradient(145deg,#172131 0%,#111827 100%); border:1px solid #263449; border-radius:12px; padding:13px 15px; min-height:92px; box-shadow:0 10px 28px rgba(0,0,0,.14);}
         .metric-card::after {content:""; position:absolute; right:-28px; top:-35px; width:90px; height:90px; border-radius:50%; background:rgba(255,255,255,.025);}
@@ -60,7 +60,7 @@ st.markdown(
         .alert-yellow {background:rgba(245,158,11,.08); border:1px solid rgba(245,158,11,.28); color:#fcd34d;}
         .alert-green {background:rgba(34,197,94,.08); border:1px solid rgba(34,197,94,.25); color:#86efac;}
 
-        .badge {display:inline-block; padding:4px 8px; border-radius:999px; font-size:9px; font-weight:800; letter-spacing:.25px; margin-right:4px; margin-bottom:5px;}
+        .badge {display:inline-block; padding:3px 7px; border-radius:999px; font-size:9px; font-weight:800; letter-spacing:.25px; margin-right:4px; margin-bottom:4px;}
         .badge-red {background:rgba(239,68,68,.12); color:#fca5a5; border:1px solid rgba(239,68,68,.24);}
         .badge-yellow {background:rgba(245,158,11,.12); color:#fcd34d; border:1px solid rgba(245,158,11,.24);}
         .badge-green {background:rgba(34,197,94,.12); color:#86efac; border:1px solid rgba(34,197,94,.22);}
@@ -1248,7 +1248,6 @@ if menu == "📋 Painel (Kanban)":
     # FILTRAGEM
     # ========================================================
 
-    # Sem filtro de período no painel.
     cargas_filtradas_periodo = list(cargas_lista)
 
     if motorista_selecionado != "Todos os Motoristas":
@@ -1414,219 +1413,133 @@ if menu == "📋 Painel (Kanban)":
 
 
                 # ==================================================
-                # CARD
+                # CARD (CONTAINER ÚNICO E ORGANIZADO)
                 # ==================================================
 
                 with st.container():
 
-                    # Cor lateral do card
                     cor_borda = (
                         "#f85149"
                         if atrasada
                         else cor_motorista
                     )
 
+                    badges = ""
 
-                    c_info, c_btn = st.columns(
-                        [3.5, 2.5]
+                    if atrasada:
+                        badges += '<span class="badge badge-red">🔴 ATRASADA</span>'
+                    elif entrega_hoje:
+                        badges += '<span class="badge badge-yellow">📦 ENTREGA HOJE</span>'
+                    elif saida_hoje:
+                        badges += '<span class="badge badge-yellow">🚚 SAI HOJE</span>'
+                    else:
+                        badges += '<span class="badge badge-green">✓ NO PRAZO</span>'
+
+                    if prazo_texto:
+                        badges += f'<span class="badge badge-blue">{prazo_texto}</span>'
+
+                    observacoes = str(
+                        carga.get("observacoes", "")
+                    ).strip()
+
+                    ajudantes_html = ""
+                    if ajudantes_texto.strip():
+                        ajudantes_html = f'<div class="card-meta">👥 Ajudantes: <strong>{ajudantes_texto}</strong></div>'
+
+                    observacoes_html = ""
+                    if observacoes:
+                        observacoes_html = f'<div class="card-meta">📝 Obs.: <strong>{observacoes}</strong></div>'
+
+                    # Renderiza o cartão visual
+                    render_html(
+                        f"""
+                        <div class="kanban-card" style="border-left:3px solid {cor_borda};">
+                            <div>{badges}</div>
+                            <div class="card-id">📌 PLANEJAMENTO #{carga_id}</div>
+                            <div class="card-driver">🚚 {motorista_atual}</div>
+                            <div class="card-label">Destino</div>
+                            <div class="card-destination">{carga.get('destino', '')}</div>
+                            <div class="card-divider"></div>
+                            <div class="card-meta">📅 Saída: <strong>{saida_br or '—'}</strong> &nbsp; • &nbsp; Entrega: <strong>{entrega_br or '—'}</strong></div>
+                            {ajudantes_html}
+                            {observacoes_html}
+                        </div>
+                        """
                     )
 
+                    # Botões de Ação (Editar / Excluir) alinhados de forma compacta
+                    c_btn_e, c_btn_d = st.columns(2)
 
-                    with c_info:
-
-                        badges = ""
-
-                        if atrasada:
-
-                            badges += (
-                                '<span class="badge badge-red">'
-                                '🔴 ATRASADA'
-                                '</span>'
+                    with c_btn_e:
+                        if st.button(
+                            "✏️ Editar",
+                            key=f"btn_edit_{carga_id}",
+                            use_container_width=True
+                        ):
+                            st.session_state[
+                                f"editando_{carga_id}"
+                            ] = not st.session_state.get(
+                                f"editando_{carga_id}",
+                                False
                             )
 
-                        elif entrega_hoje:
+                    with c_btn_d:
+                        if st.button(
+                            "🗑️ Excluir",
+                            key=f"btn_del_{carga_id}",
+                            use_container_width=True
+                        ):
+                            st.session_state[
+                                f"confirmar_exclusao_{carga_id}"
+                            ] = True
 
-                            badges += (
-                                '<span class="badge badge-yellow">'
-                                '📦 ENTREGA HOJE'
-                                '</span>'
-                            )
-
-                        elif saida_hoje:
-
-                            badges += (
-                                '<span class="badge badge-yellow">'
-                                '🚚 SAI HOJE'
-                                '</span>'
-                            )
-
-                        else:
-
-                            badges += (
-                                '<span class="badge badge-green">'
-                                '✓ NO PRAZO'
-                                '</span>'
-                            )
-
-
-                        if prazo_texto:
-
-                            badges += (
-                                f'<span class="badge badge-blue">'
-                                f'{prazo_texto}'
-                                f'</span>'
-                            )
-
-
-                        observacoes = str(
-                            carga.get(
-                                "observacoes",
-                                ""
-                            )
-                        ).strip()
-
-
-                        ajudantes_html = ""
-
-                        if ajudantes_texto.strip():
-                            ajudantes_html = f'<div class="card-meta">👥 Ajudantes: <strong>{ajudantes_texto}</strong></div>'
-
-
-                        observacoes_html = ""
-
-                        if observacoes:
-                            observacoes_html = f'<div class="card-meta">📝 Obs.: <strong>{observacoes}</strong></div>'
-                        render_html(
-                            f"""
-                            <div class="kanban-card" style="border-left:3px solid {cor_borda};">
-                                <div>{badges}</div>
-                                <div class="card-id">📌 PLANEJAMENTO #{carga_id}</div>
-                                <div class="card-driver">🚚 {motorista_atual}</div>
-                                <div class="card-label">Destino</div>
-                                <div class="card-destination">{carga.get('destino', '')}</div>
-                                <div class="card-divider"></div>
-                                <div class="card-meta">📅 Saída: <strong>{saida_br or '—'}</strong> &nbsp; • &nbsp; Entrega: <strong>{entrega_br or '—'}</strong></div>
-                                {ajudantes_html}
-                                {observacoes_html}
-                            </div>
-                            """
-                        )
-
-
-                    # ==================================================
-                    # BOTÕES
-                    # ==================================================
-
-                    with c_btn:
-
-                        col_e, col_d = st.columns(
-                            2
-                        )
-
-
-                        with col_e:
-
-                            if st.button(
-                                "✏️",
-                                key=f"btn_edit_{carga_id}",
-                                help="Editar Carga",
-                                use_container_width=True
-                            ):
-
-                                st.session_state[
-                                    f"editando_{carga_id}"
-                                ] = not st.session_state.get(
-                                    f"editando_{carga_id}",
-                                    False
-                                )
-
-
-                        with col_d:
-
-                            if st.button(
-                                "🗑️",
-                                key=f"btn_del_{carga_id}",
-                                help="Excluir Carga",
-                                use_container_width=True
-                            ):
-
-                                st.session_state[
-                                    f"confirmar_exclusao_{carga_id}"
-                                ] = True
-
-
-                    # ==================================================
-                    # CONFIRMAÇÃO EXCLUSÃO
-                    # ==================================================
-
+                    # Confirmação de exclusão
                     if st.session_state.get(
                         f"confirmar_exclusao_{carga_id}",
                         False
                     ):
-
                         st.warning(
                             f"Tem certeza que deseja excluir "
                             f"a carga/planejamento {carga_id}?"
                         )
 
                         cx1, cx2 = st.columns(2)
-
                         with cx1:
-
                             if st.button(
                                 "Sim, excluir",
                                 key=f"confirm_del_{carga_id}",
                                 type="primary"
                             ):
-
                                 sucesso = deletar_documento(
                                     "cargas",
                                     carga_id
                                 )
-
                                 if sucesso:
-
                                     st.session_state[
                                         "cargas"
                                     ] = [
                                         c
                                         for c in cargas_lista
-                                        if c.get("id")
-                                        != carga_id
+                                        if c.get("id") != carga_id
                                     ]
-
                                     st.session_state[
                                         f"confirmar_exclusao_{carga_id}"
                                     ] = False
-
-                                    st.success(
-                                        "Carga excluída."
-                                    )
-
+                                    st.success("Carga excluída.")
                                     st.rerun()
 
-
                         with cx2:
-
                             if st.button(
                                 "Cancelar",
                                 key=f"cancel_del_{carga_id}"
                             ):
-
                                 st.session_state[
                                     f"confirmar_exclusao_{carga_id}"
                                 ] = False
-
                                 st.rerun()
 
-
                     # ==================================================
-                    # MOVIMENTAÇÃO DO STATUS
-                    # ==================================================
-                    #
-                    # Não existe botão "Salvar Status".
-                    # Clicar em Voltar/Avançar salva o novo status
-                    # automaticamente no Firebase.
+                    # BOTÕES DE MOVIMENTAÇÃO (VOLTAR / AVANÇAR)
                     # ==================================================
 
                     indice_status = (
@@ -1638,42 +1551,30 @@ if menu == "📋 Painel (Kanban)":
                     mov1, mov2 = st.columns(2)
 
                     with mov1:
-
                         if indice_status > 0:
-
                             if st.button(
                                 "⬅️ Voltar",
                                 key=f"status_voltar_{carga_id}",
-                                help="Voltar uma etapa",
                                 use_container_width=True
                             ):
-
                                 status_anterior = colunas_status[
                                     indice_status - 1
                                 ]
-
                                 campos_status = {
                                     "status": status_anterior
                                 }
-
                                 sucesso = atualizar_campos_documento(
                                     "cargas",
                                     carga_id,
                                     campos_status
                                 )
-
                                 if sucesso:
-
                                     carga["status"] = status_anterior
-
                                     st.session_state[
                                         f"editando_{carga_id}"
                                     ] = False
-
                                     st.rerun()
-
                         else:
-
                             st.button(
                                 "⬅️ Voltar",
                                 key=f"status_voltar_disabled_{carga_id}",
@@ -1682,27 +1583,19 @@ if menu == "📋 Painel (Kanban)":
                             )
 
                     with mov2:
-
                         if indice_status < len(colunas_status) - 1:
-
                             if st.button(
                                 "Avançar ➡️",
                                 key=f"status_avancar_{carga_id}",
-                                help="Avançar uma etapa",
                                 type="primary",
                                 use_container_width=True
                             ):
-
                                 proximo_status = colunas_status[
                                     indice_status + 1
                                 ]
-
                                 campos_status = {
                                     "status": proximo_status
                                 }
-
-                                # Registra a conclusão real sem alterar
-                                # a data prevista de entrega.
                                 if (
                                     proximo_status
                                     == "Entregue / Concluído"
@@ -1718,11 +1611,8 @@ if menu == "📋 Painel (Kanban)":
                                     carga_id,
                                     campos_status
                                 )
-
                                 if sucesso:
-
                                     carga["status"] = proximo_status
-
                                     if (
                                         "data_conclusao"
                                         in campos_status
@@ -1732,15 +1622,11 @@ if menu == "📋 Painel (Kanban)":
                                         ] = campos_status[
                                             "data_conclusao"
                                         ]
-
                                     st.session_state[
                                         f"editando_{carga_id}"
                                     ] = False
-
                                     st.rerun()
-
                         else:
-
                             st.button(
                                 "✅ Concluído",
                                 key=f"status_concluido_{carga_id}",
@@ -1748,6 +1634,7 @@ if menu == "📋 Painel (Kanban)":
                                 use_container_width=True
                             )
 
+                    st.markdown("<hr style='margin: 10px 0; border-color: #243145;'>", unsafe_allow_html=True)
 
                     # ==================================================
                     # FORMULÁRIO DE EDIÇÃO
@@ -1766,7 +1653,6 @@ if menu == "📋 Painel (Kanban)":
                                 f"**✏️ Editando Planejamento #{carga_id}**"
                             )
 
-
                             mot_idx = (
                                 motoristas_lista.index(
                                     carga.get("motorista")
@@ -1776,7 +1662,6 @@ if menu == "📋 Painel (Kanban)":
                                 else 0
                             )
 
-
                             novo_mot = st.selectbox(
                                 "Motorista",
                                 motoristas_lista
@@ -1784,7 +1669,6 @@ if menu == "📋 Painel (Kanban)":
                                 else [""],
                                 index=mot_idx
                             )
-
 
                             novo_dest = st.text_input(
                                 "Destino",
@@ -1794,7 +1678,6 @@ if menu == "📋 Painel (Kanban)":
                                 )
                             )
 
-
                             novo_obs = st.text_area(
                                 "Observações / Rota",
                                 value=carga.get(
@@ -1802,7 +1685,6 @@ if menu == "📋 Painel (Kanban)":
                                     ""
                                 )
                             )
-
 
                             ajudantes_existentes = carga.get(
                                 "ajudantes",
@@ -1813,9 +1695,7 @@ if menu == "📋 Painel (Kanban)":
                                 ajudantes_existentes,
                                 list
                             ):
-
                                 ajudantes_existentes = []
-
 
                             ajudantes_editados = st.multiselect(
                                 "Ajudantes",
@@ -1827,7 +1707,6 @@ if menu == "📋 Painel (Kanban)":
                                 ]
                             )
 
-
                             dt_saida_val = (
                                 converter_para_data(
                                     carga.get(
@@ -1836,7 +1715,6 @@ if menu == "📋 Painel (Kanban)":
                                 )
                                 or datetime.date.today()
                             )
-
 
                             dt_ent_val = (
                                 converter_para_data(
@@ -1847,13 +1725,11 @@ if menu == "📋 Painel (Kanban)":
                                 or datetime.date.today()
                             )
 
-
                             nova_saida = st.date_input(
                                 "Data Saída",
                                 value=dt_saida_val,
                                 key=f"saida_{carga_id}"
                             )
-
 
                             nova_entrega = st.date_input(
                                 "Data Entrega",
@@ -1861,14 +1737,11 @@ if menu == "📋 Painel (Kanban)":
                                 key=f"entrega_{carga_id}"
                             )
 
-
                             salvar_edicao = st.form_submit_button(
                                 "💾 Salvar Alterações"
                             )
 
-
                             if salvar_edicao:
-
                                 carga["motorista"] = novo_mot
                                 carga["destino"] = novo_dest
                                 carga["observacoes"] = novo_obs
@@ -1882,24 +1755,19 @@ if menu == "📋 Painel (Kanban)":
                                     nova_entrega
                                 )
 
-
                                 sucesso = salvar_documento(
                                     "cargas",
                                     carga_id,
                                     carga
                                 )
 
-
                                 if sucesso:
-
                                     st.session_state[
                                         f"editando_{carga_id}"
                                     ] = False
-
                                     st.success(
                                         "Carga atualizada com sucesso!"
                                     )
-
                                     st.rerun()
 
 
@@ -2486,10 +2354,6 @@ elif menu == "📈 Relatórios":
 
     else:
 
-        # ====================================================
-        # FILTROS
-        # ====================================================
-
         st.markdown(
             "### 🔎 Filtros do Relatório"
         )
@@ -2580,10 +2444,6 @@ elif menu == "📈 Relatórios":
                 )
             ]
 
-
-        # ====================================================
-        # INDICADORES
-        # ====================================================
 
         total_relatorio = len(
             cargas_relatorio
@@ -2729,11 +2589,6 @@ elif menu == "📈 Relatórios":
 
         st.markdown("---")
 
-
-        # ====================================================
-        # GRÁFICOS PROFISSIONAIS — SEM DEPENDÊNCIAS EXTERNAS
-        # ====================================================
-
         st.markdown('<div class="section-title">📊 Visão Gerencial</div>', unsafe_allow_html=True)
 
         cores_status = {
@@ -2836,55 +2691,36 @@ elif menu == "📈 Relatórios":
 
         st.markdown(grafico_barras_html("Top Motoristas", motorista_contagem, limite=5), unsafe_allow_html=True)
 
-        # ====================================================
-        # TABELA
-        # ====================================================
-
         st.markdown(
             "### 📋 Detalhamento das Cargas"
         )
-
 
         df_tabela = preparar_dataframe(
             cargas_relatorio
         )
 
-
         if df_tabela.empty:
-
             st.info(
                 "Nenhuma carga encontrada "
                 "com os filtros selecionados."
             )
-
         else:
-
             st.dataframe(
                 df_tabela,
                 use_container_width=True,
                 hide_index=True
             )
 
-
-        # ====================================================
-        # EXPORTAÇÃO
-        # ====================================================
-
         st.markdown(
             "### 📥 Exportar Arquivos"
         )
 
-
         col_exp1, col_exp2 = st.columns(2)
 
-
         with col_exp1:
-
             excel_data = gerar_excel_profissional(
                 df_tabela
             )
-
-
             st.download_button(
                 label="📥 Baixar Planilha Excel (.xlsx)",
                 data=excel_data,
@@ -2896,14 +2732,10 @@ elif menu == "📈 Relatórios":
                 use_container_width=True
             )
 
-
         with col_exp2:
-
             pdf_bytes = gerar_pdf(
                 df_tabela
             )
-
-
             st.download_button(
                 label="📄 Baixar Relatório em PDF",
                 data=pdf_bytes,
