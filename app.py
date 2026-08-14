@@ -133,7 +133,7 @@ FIREBASE_PROJECT_ID = "logistica-d6c14"
 
 
 # ============================================================
-# FUNÇÕES AUXILIARES
+# FUNÇÕES AUXILIARES E CACHE
 # ============================================================
 
 def formatar_data_br(data_str):
@@ -166,6 +166,7 @@ def converter_para_data(data_str):
         return None
 
 
+@st.cache_data(ttl=60, show_spinner=False)
 def carregar_colecao(colecao):
     url = (
         f"https://firestore.googleapis.com/v1/projects/"
@@ -244,6 +245,11 @@ def carregar_colecao(colecao):
     return []
 
 
+def limpar_cache_firebase():
+    """Limpa o cache para forçar nova busca no banco quando houver alterações."""
+    carregar_colecao.clear()
+
+
 def salvar_documento(colecao, doc_id, dados):
     url = (
         f"https://firestore.googleapis.com/v1/projects/"
@@ -317,6 +323,7 @@ def salvar_documento(colecao, doc_id, dados):
 
             return False
 
+        limpar_cache_firebase()
         return True
 
     except requests.exceptions.Timeout:
@@ -395,6 +402,7 @@ def atualizar_campos_documento(colecao, doc_id, campos):
             )
             return False
 
+        limpar_cache_firebase()
         return True
 
     except requests.exceptions.Timeout:
@@ -433,6 +441,7 @@ def deletar_documento(colecao, doc_id):
 
             return False
 
+        limpar_cache_firebase()
         return True
 
     except requests.exceptions.Timeout:
@@ -452,6 +461,7 @@ def deletar_documento(colecao, doc_id):
 
 
 def atualizar_dados():
+    limpar_cache_firebase()
     st.session_state["cargas"] = carregar_colecao("cargas")
     st.session_state["motoristas"] = carregar_colecao("motoristas")
     st.session_state["ajudantes"] = carregar_colecao("ajudantes")
@@ -1458,7 +1468,7 @@ elif menu == "📈 Relatórios":
                 )
             html_evo = f"""
             <div class="chart-card">
-              <div class="chart-heading"><span>Movimentação por Date</span><small>Data de saída/carregamento</small></div>
+              <div class="chart-heading"><span>Movimentação por Data</span><small>Data de saída/carregamento</small></div>
               <div class="evo-chart">{"".join(pontos)}</div>
             </div>"""
             st.markdown(html_evo, unsafe_allow_html=True)
