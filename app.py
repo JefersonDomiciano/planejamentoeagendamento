@@ -7,7 +7,6 @@ import pandas as pd
 import streamlit as st
 from fpdf import FPDF
 import openpyxl
-import plotly.graph_objects as go
 from openpyxl.styles import Font, Alignment, PatternFill, Border, Side
 from openpyxl.utils import get_column_letter
 
@@ -41,18 +40,18 @@ st.markdown(
 
         .kanban-header {text-align:left; background:linear-gradient(135deg,#182235 0%,#111827 100%); color:#f8fafc!important; padding:13px 14px; border-radius:12px; font-weight:750; font-size:13px; border:1px solid #273449; margin-bottom:10px; box-shadow:0 8px 24px rgba(0,0,0,.14);}
         .kanban-count {color:#71819a!important; font-size:11px; font-weight:600;}
-        .kanban-card {background:linear-gradient(145deg,#172131 0%,#111827 100%); border:1px solid #263449; border-radius:14px; padding:15px; margin:0 0 10px 0; box-shadow:0 10px 26px rgba(0,0,0,.16);}
+        .kanban-card {background:linear-gradient(145deg,#172131 0%,#111827 100%); border:1px solid #263449; border-radius:12px; padding:11px 12px; margin:0 0 10px 0; box-shadow:0 10px 26px rgba(0,0,0,.16);}
         .card-label {color:#73849a; font-size:10px; font-weight:700; text-transform:uppercase; letter-spacing:.7px;}
         .card-id {color:#60a5fa; font-size:12px; font-weight:800;}
-        .card-driver {color:#f8fafc; font-size:15px; font-weight:800; margin:7px 0 8px;}
-        .card-destination {color:#d6deea; font-size:13px; font-weight:600;}
-        .card-meta {color:#a5b3c5; font-size:11px; line-height:1.7;}
+        .card-driver {color:#f8fafc; font-size:13px; font-weight:800; margin:7px 0 8px;}
+        .card-destination {color:#d6deea; font-size:11px; font-weight:600;}
+        .card-meta {color:#a5b3c5; font-size:10px; line-height:1.7;}
         .card-divider {height:1px; background:#243145; margin:10px 0;}
 
-        .metric-card {position:relative; overflow:hidden; background:linear-gradient(145deg,#172131 0%,#111827 100%); border:1px solid #263449; border-radius:14px; padding:17px 18px; min-height:116px; box-shadow:0 10px 28px rgba(0,0,0,.14);}
+        .metric-card {position:relative; overflow:hidden; background:linear-gradient(145deg,#172131 0%,#111827 100%); border:1px solid #263449; border-radius:12px; padding:13px 15px; min-height:92px; box-shadow:0 10px 28px rgba(0,0,0,.14);}
         .metric-card::after {content:""; position:absolute; right:-28px; top:-35px; width:90px; height:90px; border-radius:50%; background:rgba(255,255,255,.025);}
         .metric-title {color:#8998ac; font-size:10px; font-weight:800; letter-spacing:.8px;}
-        .metric-value {color:#f8fafc; font-size:30px; font-weight:850; line-height:1.1; margin-top:7px;}
+        .metric-value {color:#f8fafc; font-size:25px; font-weight:850; line-height:1.1; margin-top:7px;}
         .metric-subtitle {color:#718198; font-size:10px; margin-top:6px;}
         .metric-blue{border-left:3px solid #3b82f6;} .metric-green{border-left:3px solid #22c55e;} .metric-yellow{border-left:3px solid #f59e0b;} .metric-purple{border-left:3px solid #a855f7;} .metric-red{border-left:3px solid #ef4444;}
 
@@ -70,6 +69,29 @@ st.markdown(
         .section-title {color:#f1f5f9; font-size:18px; font-weight:800; margin:4px 0 14px;}
         .stSelectbox label,.stDateInput label,.stTextInput label,.stMultiSelect label,.stTextArea label {font-size:11px!important; color:#8ea0b8!important; font-weight:650!important;}
         div[data-testid="stDataFrame"] {border:1px solid #263449; border-radius:12px; overflow:hidden;}
+
+        .chart-card {background:linear-gradient(145deg,#172131 0%,#111827 100%); border:1px solid #263449; border-radius:14px; padding:18px; margin:0 0 14px 0; box-shadow:0 10px 28px rgba(0,0,0,.14);}
+        .chart-heading {display:flex; justify-content:space-between; align-items:flex-end; margin-bottom:16px; color:#f1f5f9; font-size:14px; font-weight:800;}
+        .chart-heading small {color:#718198; font-size:10px; font-weight:600;}
+        .donut-layout {display:flex; align-items:center; gap:30px; min-height:230px;}
+        .donut {width:190px; height:190px; border-radius:50%; display:flex; align-items:center; justify-content:center; flex-shrink:0;}
+        .donut-hole {width:116px; height:116px; border-radius:50%; background:#111827; display:flex; flex-direction:column; align-items:center; justify-content:center; box-shadow:0 0 0 1px #263449 inset;}
+        .donut-hole strong {font-size:28px; line-height:1; color:#f8fafc;}
+        .donut-hole span {font-size:10px; color:#718198; margin-top:5px;}
+        .legend-list {flex:1;} .legend-row {display:grid; grid-template-columns:12px 1fr auto; gap:8px; align-items:center; padding:8px 0; color:#cbd5e1; font-size:11px; border-bottom:1px solid rgba(148,163,184,.08);}
+        .legend-row b {color:#f8fafc; font-size:12px;} .legend-dot {width:8px; height:8px; border-radius:50%; display:block;}
+        .bar-list {display:flex; flex-direction:column; gap:13px;}
+        .bar-row {display:grid; grid-template-columns:180px 1fr 34px; gap:10px; align-items:center;}
+        .bar-label {overflow:hidden; text-overflow:ellipsis; white-space:nowrap; color:#cbd5e1; font-size:11px;}
+        .bar-track {height:9px; background:#202c3d; border-radius:999px; overflow:hidden;}
+        .bar-fill {height:100%; border-radius:999px; background:linear-gradient(90deg,#3b82f6,#60a5fa); box-shadow:0 0 12px rgba(59,130,246,.18);}
+        .bar-value {text-align:right; color:#f8fafc; font-size:12px; font-weight:800;}
+        .chart-empty {padding:35px 10px; text-align:center; color:#718198; font-size:12px;}
+        .evo-chart {height:220px; display:flex; align-items:flex-end; gap:10px; padding:12px 5px 0; border-bottom:1px solid #263449; overflow-x:auto;}
+        .evo-item {height:100%; min-width:44px; display:flex; flex-direction:column; justify-content:flex-end; align-items:center; gap:6px;}
+        .evo-value {color:#dbeafe; font-size:10px; font-weight:800;}
+        .evo-bar {width:26px; min-height:8px; border-radius:7px 7px 2px 2px; background:linear-gradient(180deg,#60a5fa,#2563eb); box-shadow:0 4px 12px rgba(37,99,235,.18);}
+        .evo-label {color:#718198; font-size:9px; white-space:nowrap;}
 
         @media (max-width:768px) {
             .block-container{padding-left:.65rem;padding-right:.65rem;padding-top:.6rem;}
@@ -310,6 +332,82 @@ def salvar_documento(colecao, doc_id, dados):
     except Exception as e:
 
         st.error(f"Erro ao salvar no Firebase: {e}")
+        return False
+
+
+
+def atualizar_campos_documento(colecao, doc_id, campos):
+    """
+    Atualiza somente os campos informados no documento.
+    Usado para movimentar o status automaticamente sem botão Salvar Status.
+    """
+    url = (
+        f"https://firestore.googleapis.com/v1/projects/"
+        f"{FIREBASE_PROJECT_ID}/databases/(default)/documents/"
+        f"{colecao}/{doc_id}"
+    )
+
+    fields = {}
+
+    for k, v in campos.items():
+
+        if isinstance(v, list):
+            fields[k] = {
+                "arrayValue": {
+                    "values": [
+                        {"stringValue": str(x)}
+                        for x in v
+                    ]
+                }
+            }
+
+        elif isinstance(v, bool):
+            fields[k] = {"booleanValue": v}
+
+        elif isinstance(v, int):
+            fields[k] = {"integerValue": str(v)}
+
+        elif isinstance(v, float):
+            fields[k] = {"doubleValue": v}
+
+        elif v is None:
+            fields[k] = {"nullValue": None}
+
+        else:
+            fields[k] = {"stringValue": str(v)}
+
+    params = [
+        ("updateMask.fieldPaths", campo)
+        for campo in campos.keys()
+    ]
+
+    try:
+        response = requests.patch(
+            url,
+            params=params,
+            json={"fields": fields},
+            timeout=10
+        )
+
+        if response.status_code not in [200, 201]:
+            st.error(
+                f"Erro ao atualizar no Firebase. "
+                f"HTTP {response.status_code}"
+            )
+            return False
+
+        return True
+
+    except requests.exceptions.Timeout:
+        st.error("Tempo esgotado ao atualizar o Firebase.")
+        return False
+
+    except requests.exceptions.RequestException as e:
+        st.error(f"Erro de conexão com o Firebase: {e}")
+        return False
+
+    except Exception as e:
+        st.error(f"Erro ao atualizar o Firebase: {e}")
         return False
 
 
@@ -1126,10 +1224,7 @@ if menu == "📋 Painel (Kanban)":
 
     st.markdown("### 🔎 Filtros da Operação")
 
-    col_f1, col_f2, col_f3, col_f4 = st.columns(
-        [2, 1.5, 1.5, 2]
-    )
-
+    col_f1, col_f2 = st.columns([2, 3])
 
     with col_f1:
 
@@ -1142,83 +1237,27 @@ if menu == "📋 Painel (Kanban)":
             motoristas_filtro_opcoes
         )
 
-
     with col_f2:
-
-        data_inicial_filtro = st.date_input(
-            "Data Inicial (Saída)",
-            value=(
-                datetime.date.today()
-                - datetime.timedelta(days=7)
-            )
-        )
-
-
-    with col_f3:
-
-        data_final_filtro = st.date_input(
-            "Data Final (Saída)",
-            value=(
-                datetime.date.today()
-                + datetime.timedelta(days=30)
-            )
-        )
-
-
-    with col_f4:
 
         pesquisa = st.text_input(
             "🔎 Pesquisar",
-            placeholder="ID, motorista ou destino..."
+            placeholder="ID, motorista, destino ou observação..."
         )
-
 
     # ========================================================
     # FILTRAGEM
     # ========================================================
 
-    cargas_filtradas_periodo = []
-
-    for c in cargas_lista:
-
-        data_str = (
-            c.get("data_saida")
-            or c.get("data_carga")
-        )
-
-        incluir = True
-
-        if data_str:
-
-            dt_obj = converter_para_data(
-                data_str
-            )
-
-            if dt_obj:
-
-                if not (
-                    data_inicial_filtro
-                    <= dt_obj
-                    <= data_final_filtro
-                ):
-
-                    incluir = False
-
-
-        if incluir:
-
-            cargas_filtradas_periodo.append(c)
-
+    # Sem filtro de período no painel.
+    cargas_filtradas_periodo = list(cargas_lista)
 
     if motorista_selecionado != "Todos os Motoristas":
 
         cargas_filtradas_periodo = [
             c
             for c in cargas_filtradas_periodo
-            if c.get("motorista")
-            == motorista_selecionado
+            if c.get("motorista") == motorista_selecionado
         ]
-
 
     if pesquisa:
 
@@ -1227,19 +1266,14 @@ if menu == "📋 Painel (Kanban)":
         cargas_filtradas_periodo = [
             c
             for c in cargas_filtradas_periodo
-
             if (
-                termo
-                in str(c.get("id", "")).lower()
-                or termo
-                in str(c.get("motorista", "")).lower()
-                or termo
-                in str(c.get("destino", "")).lower()
-                or termo
-                in str(c.get("observacoes", "")).lower()
+                termo in str(c.get("id", "")).lower()
+                or termo in str(c.get("motorista", "")).lower()
+                or termo in str(c.get("destino", "")).lower()
+                or termo in str(c.get("observacoes", "")).lower()
+                or termo in str(c.get("status", "")).lower()
             )
         ]
-
 
     st.caption(
         f"🔎 {len(cargas_filtradas_periodo)} "
@@ -1587,51 +1621,132 @@ if menu == "📋 Painel (Kanban)":
 
 
                     # ==================================================
-                    # STATUS
+                    # MOVIMENTAÇÃO DO STATUS
+                    # ==================================================
+                    #
+                    # Não existe botão "Salvar Status".
+                    # Clicar em Voltar/Avançar salva o novo status
+                    # automaticamente no Firebase.
                     # ==================================================
 
-                    novo_status = st.selectbox(
-                        "Mover Status",
-                        colunas_status,
-                        index=(
-                            colunas_status.index(status)
-                            if status in colunas_status
-                            else 0
-                        ),
-                        key=f"status_{carga_id}",
+                    indice_status = (
+                        colunas_status.index(status)
+                        if status in colunas_status
+                        else 0
                     )
 
+                    mov1, mov2 = st.columns(2)
 
-                    if novo_status != carga.get(
-                        "status"
-                    ):
+                    with mov1:
 
-                        carga["status"] = novo_status
+                        if indice_status > 0:
 
-                        if (
-                            novo_status
-                            == "Entregue / Concluído"
-                            and not carga.get("data_entrega")
-                        ):
+                            if st.button(
+                                "⬅️ Voltar",
+                                key=f"status_voltar_{carga_id}",
+                                help="Voltar uma etapa",
+                                use_container_width=True
+                            ):
 
-                            carga["data_entrega"] = str(
-                                datetime.date.today()
+                                status_anterior = colunas_status[
+                                    indice_status - 1
+                                ]
+
+                                campos_status = {
+                                    "status": status_anterior
+                                }
+
+                                sucesso = atualizar_campos_documento(
+                                    "cargas",
+                                    carga_id,
+                                    campos_status
+                                )
+
+                                if sucesso:
+
+                                    carga["status"] = status_anterior
+
+                                    st.session_state[
+                                        f"editando_{carga_id}"
+                                    ] = False
+
+                                    st.rerun()
+
+                        else:
+
+                            st.button(
+                                "⬅️ Voltar",
+                                key=f"status_voltar_disabled_{carga_id}",
+                                disabled=True,
+                                use_container_width=True
                             )
 
+                    with mov2:
 
-                        sucesso = salvar_documento(
-                            "cargas",
-                            carga_id,
-                            carga
-                        )
+                        if indice_status < len(colunas_status) - 1:
 
-                        if sucesso:
+                            if st.button(
+                                "Avançar ➡️",
+                                key=f"status_avancar_{carga_id}",
+                                help="Avançar uma etapa",
+                                type="primary",
+                                use_container_width=True
+                            ):
 
-                            st.session_state[
-                                f"editando_{carga_id}"
-                            ] = False
+                                proximo_status = colunas_status[
+                                    indice_status + 1
+                                ]
 
-                            st.rerun()
+                                campos_status = {
+                                    "status": proximo_status
+                                }
+
+                                # Registra a conclusão real sem alterar
+                                # a data prevista de entrega.
+                                if (
+                                    proximo_status
+                                    == "Entregue / Concluído"
+                                ):
+                                    campos_status[
+                                        "data_conclusao"
+                                    ] = str(
+                                        datetime.date.today()
+                                    )
+
+                                sucesso = atualizar_campos_documento(
+                                    "cargas",
+                                    carga_id,
+                                    campos_status
+                                )
+
+                                if sucesso:
+
+                                    carga["status"] = proximo_status
+
+                                    if (
+                                        "data_conclusao"
+                                        in campos_status
+                                    ):
+                                        carga[
+                                            "data_conclusao"
+                                        ] = campos_status[
+                                            "data_conclusao"
+                                        ]
+
+                                    st.session_state[
+                                        f"editando_{carga_id}"
+                                    ] = False
+
+                                    st.rerun()
+
+                        else:
+
+                            st.button(
+                                "✅ Concluído",
+                                key=f"status_concluido_{carga_id}",
+                                disabled=True,
+                                use_container_width=True
+                            )
 
 
                     # ==================================================
@@ -2029,10 +2144,7 @@ elif menu == "👥 Cadastros (Equipe)":
 
                 else:
 
-                    doc_id = (
-                        f"mot_"
-                        f"{int(datetime.datetime.now().timestamp())}"
-                    )
+                    doc_id = f"mot_{int(datetime.datetime.now().timestamp() * 1000)}"
 
 
                     dados_mot = {
@@ -2215,10 +2327,7 @@ elif menu == "👥 Cadastros (Equipe)":
 
                 else:
 
-                    doc_id = (
-                        f"aju_"
-                        f"{int(datetime.datetime.now().timestamp())}"
-                    )
+                    doc_id = f"aju_{int(datetime.datetime.now().timestamp() * 1000)}"
 
 
                     dados_aju = {
@@ -2622,7 +2731,7 @@ elif menu == "📈 Relatórios":
 
 
         # ====================================================
-        # GRÁFICOS PROFISSIONAIS
+        # GRÁFICOS PROFISSIONAIS — SEM DEPENDÊNCIAS EXTERNAS
         # ====================================================
 
         st.markdown('<div class="section-title">📊 Visão Gerencial</div>', unsafe_allow_html=True)
@@ -2648,7 +2757,7 @@ elif menu == "📈 Relatórios":
 
         motorista_contagem = {}
         for c in cargas_relatorio:
-            motorista = c.get("motorista", "Sem motorista")
+            motorista = c.get("motorista", "Sem motorista") or "Sem motorista"
             motorista_contagem[motorista] = motorista_contagem.get(motorista, 0) + 1
 
         evolucao_contagem = {}
@@ -2657,70 +2766,75 @@ elif menu == "📈 Relatórios":
             if data_obj:
                 evolucao_contagem[data_obj] = evolucao_contagem.get(data_obj, 0) + 1
 
-        gc1, gc2 = st.columns(2)
+        def grafico_status_html(contagem, total):
+            partes = []
+            inicio = 0.0
+            for status in status_ordem:
+                valor = contagem.get(status, 0)
+                if not valor or not total:
+                    continue
+                fim = inicio + (valor / total) * 100
+                partes.append(f"{cores_status[status]} {inicio:.2f}% {fim:.2f}%")
+                inicio = fim
+            if not partes:
+                return '<div class="chart-empty">Nenhuma carga encontrada.</div>'
+            gradient = ", ".join(partes)
+            legenda = "".join(
+                f'<div class="legend-row"><span class="legend-dot" style="background:{cores_status[s]}"></span><span>{s}</span><b>{contagem.get(s,0)}</b></div>'
+                for s in status_ordem if contagem.get(s, 0)
+            )
+            return f"""
+            <div class="chart-card">
+              <div class="chart-heading"><span>Cargas por Status</span><small>Distribuição atual</small></div>
+              <div class="donut-layout">
+                <div class="donut" style="background:conic-gradient({gradient})">
+                  <div class="donut-hole"><strong>{total}</strong><span>cargas</span></div>
+                </div>
+                <div class="legend-list">{legenda}</div>
+              </div>
+            </div>"""
 
-        with gc1:
-            labels_status = [s for s in status_ordem if status_contagem.get(s, 0) > 0]
-            values_status = [status_contagem[s] for s in labels_status]
-            if labels_status:
-                fig = go.Figure(go.Pie(
-                    labels=labels_status, values=values_status, hole=0.68, sort=False,
-                    marker=dict(colors=[cores_status[s] for s in labels_status], line=dict(color="#111827", width=3)),
-                    textinfo="percent", textfont=dict(color="#f8fafc", size=12),
-                    hovertemplate="<b>%{label}</b><br>%{value} carga(s)<br>%{percent}<extra></extra>",
-                ))
-                fig.add_annotation(text=f"<b>{total_relatorio}</b><br><span style='font-size:11px'>cargas</span>", x=.5, y=.5, showarrow=False, font=dict(color="#f8fafc", size=18))
-                fig.update_layout(title=dict(text="Cargas por Status", font=dict(size=15, color="#f1f5f9"), x=.02), height=330, margin=dict(l=5,r=5,t=55,b=5), paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(0,0,0,0)", legend=dict(orientation="v", x=.99, xanchor="right", y=.5, font=dict(size=10, color="#cbd5e1")))
-                st.plotly_chart(fig, use_container_width=True, config={"displayModeBar": False})
-            else:
-                st.info("Nenhuma carga disponível para o gráfico de status.")
+        def grafico_barras_html(titulo, dados, limite=8):
+            pares = sorted(dados.items(), key=lambda x: x[1], reverse=True)[:limite]
+            if not pares:
+                return f'<div class="chart-card"><div class="chart-heading"><span>{titulo}</span></div><div class="chart-empty">Nenhum dado disponível.</div></div>'
+            maximo = max(v for _, v in pares) or 1
+            linhas = ""
+            for nome, valor in pares:
+                largura = max(7, (valor / maximo) * 100)
+                linhas += f"""
+                <div class="bar-row">
+                  <div class="bar-label" title="{nome}">{nome}</div>
+                  <div class="bar-track"><div class="bar-fill" style="width:{largura:.1f}%"></div></div>
+                  <div class="bar-value">{valor}</div>
+                </div>"""
+            return f"""
+            <div class="chart-card">
+              <div class="chart-heading"><span>{titulo}</span><small>Top {len(pares)}</small></div>
+              <div class="bar-list">{linhas}</div>
+            </div>"""
 
-        with gc2:
-            if motorista_contagem:
-                pares = sorted(motorista_contagem.items(), key=lambda x: x[1], reverse=True)
-                nomes = [p[0] for p in pares]
-                quantidades = [p[1] for p in pares]
-                fig = go.Figure(go.Bar(
-                    x=quantidades, y=nomes, orientation="h", marker=dict(color="#3b82f6", line=dict(color="#60a5fa", width=1)),
-                    text=quantidades, textposition="outside", textfont=dict(color="#e2e8f0", size=11),
-                    hovertemplate="<b>%{y}</b><br>%{x} carga(s)<extra></extra>",
-                ))
-                fig.update_layout(title=dict(text="Cargas por Motorista", font=dict(size=15, color="#f1f5f9"), x=.02), height=330, margin=dict(l=10,r=40,t=55,b=25), paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(0,0,0,0)", xaxis=dict(showgrid=True, gridcolor="rgba(148,163,184,.12)", zeroline=False, tickfont=dict(color="#718198", size=10)), yaxis=dict(showgrid=False, autorange="reversed", tickfont=dict(color="#cbd5e1", size=11)), showlegend=False)
-                st.plotly_chart(fig, use_container_width=True, config={"displayModeBar": False})
-            else:
-                st.info("Nenhum motorista disponível para o gráfico.")
+        st.markdown(grafico_status_html(status_contagem, total_relatorio), unsafe_allow_html=True)
+        st.markdown(grafico_barras_html("Cargas por Motorista", motorista_contagem), unsafe_allow_html=True)
 
-        gc3, gc4 = st.columns([1.65, 1])
+        if evolucao_contagem:
+            datas = sorted(evolucao_contagem)
+            max_val = max(evolucao_contagem.values()) or 1
+            pontos = []
+            for data_obj in datas:
+                valor = evolucao_contagem[data_obj]
+                altura = max(8, (valor / max_val) * 100)
+                pontos.append(
+                    f'<div class="evo-item"><div class="evo-value">{valor}</div><div class="evo-bar" style="height:{altura:.1f}%"></div><div class="evo-label">{data_obj.strftime("%d/%m")}</div></div>'
+                )
+            html_evo = f"""
+            <div class="chart-card">
+              <div class="chart-heading"><span>Movimentação por Data</span><small>Data de saída/carregamento</small></div>
+              <div class="evo-chart">{"".join(pontos)}</div>
+            </div>"""
+            st.markdown(html_evo, unsafe_allow_html=True)
 
-        with gc3:
-            if evolucao_contagem:
-                datas = sorted(evolucao_contagem)
-                valores = [evolucao_contagem[d] for d in datas]
-                fig = go.Figure(go.Scatter(
-                    x=datas, y=valores, mode="lines+markers", line=dict(color="#60a5fa", width=3, shape="spline"),
-                    marker=dict(color="#60a5fa", size=7, line=dict(color="#dbeafe", width=2)), fill="tozeroy", fillcolor="rgba(59,130,246,.12)",
-                    hovertemplate="<b>%{x|%d/%m/%Y}</b><br>%{y} carga(s)<extra></extra>",
-                ))
-                fig.update_layout(title=dict(text="Evolução de Cargas", font=dict(size=15, color="#f1f5f9"), x=.02), height=310, margin=dict(l=10,r=15,t=55,b=25), paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(0,0,0,0)", xaxis=dict(showgrid=False, tickfont=dict(color="#718198", size=9)), yaxis=dict(showgrid=True, gridcolor="rgba(148,163,184,.12)", zeroline=False, dtick=1, tickfont=dict(color="#718198", size=9)), showlegend=False)
-                st.plotly_chart(fig, use_container_width=True, config={"displayModeBar": False})
-            else:
-                st.info("Não há datas válidas para montar a evolução.")
-
-        with gc4:
-            if motorista_contagem:
-                top = sorted(motorista_contagem.items(), key=lambda x: x[1], reverse=True)[:5]
-                nomes_top = [p[0] for p in top]
-                valores_top = [p[1] for p in top]
-                maior = max(valores_top) if valores_top else 1
-                fig = go.Figure(go.Bar(
-                    x=valores_top, y=nomes_top, orientation="h", marker=dict(color="#8b5cf6"),
-                    text=valores_top, textposition="outside", textfont=dict(color="#e2e8f0", size=11),
-                    hovertemplate="<b>%{y}</b><br>%{x} carga(s)<extra></extra>",
-                ))
-                fig.update_layout(title=dict(text="Top Motoristas", font=dict(size=15, color="#f1f5f9"), x=.02), height=310, margin=dict(l=10,r=35,t=55,b=25), paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(0,0,0,0)", xaxis=dict(range=[0,max(maior+1,2)],showgrid=False,showticklabels=False,zeroline=False), yaxis=dict(autorange="reversed",showgrid=False,tickfont=dict(color="#cbd5e1",size=10)), showlegend=False)
-                st.plotly_chart(fig, use_container_width=True, config={"displayModeBar": False})
-            else:
-                st.info("Nenhum motorista no ranking.")
+        st.markdown(grafico_barras_html("Top Motoristas", motorista_contagem, limite=5), unsafe_allow_html=True)
 
         # ====================================================
         # TABELA
