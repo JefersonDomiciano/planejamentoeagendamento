@@ -31,11 +31,7 @@ FIREBASE_BASE = (
 
 
 # ============================================================
-# STATUS
-#
-# IMPORTANTE:
-# O STATUS NÃO É SALVO NO FIRESTORE.
-# Ele é calculado automaticamente pelas datas da carga.
+# STATUS DO KANBAN
 # ============================================================
 
 STATUS = [
@@ -67,6 +63,7 @@ STATUS_COLORS = {
 st.markdown(
     """
     <style>
+
         #MainMenu, footer {
             visibility:hidden;
         }
@@ -98,6 +95,10 @@ st.markdown(
             font-size:13px;
             margin-top:3px;
         }
+
+        /* =========================
+           MÉTRICAS
+        ========================= */
 
         .metric-card {
             position:relative;
@@ -155,6 +156,11 @@ st.markdown(
             border-left:3px solid #ef4444;
         }
 
+
+        /* =========================
+           ALERTAS
+        ========================= */
+
         .alert-box {
             padding:12px 15px;
             border-radius:11px;
@@ -181,6 +187,19 @@ st.markdown(
             color:#86efac;
         }
 
+
+        /* =========================
+           KANBAN
+        ========================= */
+
+        .kanban-column {
+            background:rgba(15,23,42,.35);
+            border:1px solid #263449;
+            border-radius:14px;
+            padding:10px;
+            min-height:300px;
+        }
+
         .kanban-header {
             background:linear-gradient(
                 135deg,
@@ -201,6 +220,13 @@ st.markdown(
             font-size:10px;
             font-weight:600;
             margin-top:3px;
+        }
+
+        .kanban-empty {
+            padding:30px 10px;
+            text-align:center;
+            color:#536277;
+            font-size:11px;
         }
 
         .kanban-card {
@@ -256,6 +282,15 @@ st.markdown(
             margin:9px 0;
         }
 
+        .card-status {
+            display:inline-block;
+            padding:5px 8px;
+            border-radius:999px;
+            font-size:8px;
+            font-weight:800;
+            margin-bottom:8px;
+        }
+
         .badge {
             display:inline-block;
             padding:4px 7px;
@@ -291,11 +326,17 @@ st.markdown(
             border:1px solid rgba(59,130,246,.22);
         }
 
-        .badge-purple {
-            background:rgba(168,85,247,.12);
-            color:#d8b4fe;
-            border:1px solid rgba(168,85,247,.22);
+        .status-help {
+            color:#718198;
+            font-size:9px;
+            margin-top:4px;
+            margin-bottom:8px;
         }
+
+
+        /* =========================
+           SEÇÕES / GRÁFICOS
+        ========================= */
 
         .section-title {
             color:#f1f5f9;
@@ -445,7 +486,9 @@ st.markdown(
             font-size:12px;
         }
 
+
         @media(max-width:900px) {
+
             .bar-row {
                 grid-template-columns:110px 1fr 30px;
             }
@@ -464,6 +507,7 @@ st.markdown(
                 height:90px;
             }
         }
+
     </style>
     """,
     unsafe_allow_html=True,
@@ -475,6 +519,9 @@ st.markdown(
 # ============================================================
 
 def render_html(text):
+    """
+    Renderiza HTML usando st.html quando disponível.
+    """
     if hasattr(st, "html"):
         st.html(text)
     else:
@@ -482,29 +529,40 @@ def render_html(text):
 
 
 def esc(value):
+    """
+    Escapa valores para HTML.
+    """
     return html.escape(
         str(value if value is not None else "")
     )
 
 
 def formatar_data_br(data_str):
-    if not data_str or str(data_str).lower() in (
-        "nan",
-        "none",
-        "",
-    ):
+    """
+    Converte YYYY-MM-DD para DD/MM/YYYY.
+    """
+    if not data_str:
+        return ""
+
+    texto = str(data_str)
+
+    if texto.lower() in ("nan", "none", ""):
         return ""
 
     try:
         return datetime.datetime.strptime(
-            str(data_str).split("T")[0],
+            texto.split("T")[0],
             "%Y-%m-%d",
         ).strftime("%d/%m/%Y")
+
     except Exception:
-        return str(data_str)
+        return texto
 
 
 def converter_para_data(data_str):
+    """
+    Converte valor para datetime.date.
+    """
     if not data_str:
         return None
 
@@ -512,29 +570,34 @@ def converter_para_data(data_str):
         return datetime.date.fromisoformat(
             str(data_str).split("T")[0]
         )
+
     except Exception:
         return None
 
 
 # ============================================================
-# STATUS AUTOMÁTICO
-# ============================================================
-#
-# O STATUS NÃO É SALVO.
-#
-# Ele é calculado sempre que a aplicação precisa saber
-# em qual etapa a carga está.
-#
-# Ordem:
-#
-# 1. Entrega chegou      -> Entregue
-# 2. Saída chegou        -> Em Trânsito
-# 3. Carregamento chegou -> No Pátio
-# 4. Caso contrário      -> Aguardando
-#
+# STATUS DO CARTÃO
 # ============================================================
 
-def calcular_status(carga):
+def status_inicial_pelas_datas(carga):
+    """
+    Define a posição inicial do cartão.
+
+    IMPORTANTE:
+    Não grava nada no Firestore.
+
+    Se a carga já possui um status antigo salvo no banco,
+    ele é usado somente como posição inicial.
+
+    Depois que o usuário movimentar o cartão nesta sessão,
+    a posição passa a ser controlada pelo session_state.
+    """
+
+    status_antigo = carga.get("status")
+
+    if status_antigo in STATUS:
+        return status_antigo
+
     hoje = datetime.date.today()
 
     data_carga = converter_para_data(
@@ -549,28 +612,118 @@ def calcular_status(carga):
         carga.get("data_entrega")
     )
 
-    # --------------------------------------------------------
-    # 1. ENTREGA
-    # --------------------------------------------------------
-    if data_entrega and data_entrega <= hoje:
+    if data_entrega and hoje >= data_entrega:
         return "Entregue / Concluído"
 
-    # --------------------------------------------------------
-    # 2. SAÍDA
-    # --------------------------------------------------------
-    if data_saida and data_saida <= hoje:
+    if data_saida and hoje >= data_saida:
         return "Em Trânsito / Viagem Iniciada"
 
-    # --------------------------------------------------------
-    # 3. CARREGAMENTO
-    # --------------------------------------------------------
-    if data_carga and data_carga <= hoje:
+    if data_carga and hoje >= data_carga:
         return "Carregado / No Pátio"
 
-    # --------------------------------------------------------
-    # 4. FUTURO
-    # --------------------------------------------------------
     return "Aguardando Carregamento"
+
+
+def inicializar_status_sessao(cargas):
+    """
+    Inicializa os status dos cartões apenas na sessão atual.
+
+    Nenhum status é salvo no Firestore.
+    """
+
+    if "status_cartoes" not in st.session_state:
+        st.session_state["status_cartoes"] = {}
+
+    for carga in cargas:
+        carga_id = str(carga.get("id", "")).strip()
+
+        if not carga_id:
+            continue
+
+        if carga_id not in st.session_state["status_cartoes"]:
+            st.session_state["status_cartoes"][carga_id] = (
+                status_inicial_pelas_datas(carga)
+            )
+
+
+def obter_status_cartao(carga):
+    """
+    Retorna o status atual do cartão.
+    """
+
+    carga_id = str(carga.get("id", "")).strip()
+
+    if not carga_id:
+        return STATUS[0]
+
+    inicializar_status_sessao([carga])
+
+    status = st.session_state["status_cartoes"].get(
+        carga_id
+    )
+
+    if status not in STATUS:
+        status = status_inicial_pelas_datas(carga)
+        st.session_state["status_cartoes"][carga_id] = status
+
+    return status
+
+
+def alterar_status_cartao(carga_id, novo_status):
+    """
+    Move o cartão somente na sessão.
+
+    NÃO salva no Firebase.
+    """
+
+    carga_id = str(carga_id)
+
+    if novo_status not in STATUS:
+        return
+
+    st.session_state["status_cartoes"][carga_id] = novo_status
+
+
+def avancar_status(carga_id):
+    """
+    Avança o cartão uma coluna.
+    """
+
+    status_atual = st.session_state["status_cartoes"].get(
+        str(carga_id),
+        STATUS[0],
+    )
+
+    try:
+        indice = STATUS.index(status_atual)
+    except ValueError:
+        indice = 0
+
+    if indice < len(STATUS) - 1:
+        st.session_state["status_cartoes"][str(carga_id)] = (
+            STATUS[indice + 1]
+        )
+
+
+def voltar_status(carga_id):
+    """
+    Volta o cartão uma coluna.
+    """
+
+    status_atual = st.session_state["status_cartoes"].get(
+        str(carga_id),
+        STATUS[0],
+    )
+
+    try:
+        indice = STATUS.index(status_atual)
+    except ValueError:
+        indice = 0
+
+    if indice > 0:
+        st.session_state["status_cartoes"][str(carga_id)] = (
+            STATUS[indice - 1]
+        )
 
 
 # ============================================================
@@ -578,6 +731,7 @@ def calcular_status(carga):
 # ============================================================
 
 def firestore_value(v):
+
     if "stringValue" in v:
         return v["stringValue"]
 
@@ -608,18 +762,24 @@ def firestore_value(v):
     if "mapValue" in v:
         return {
             k: firestore_value(x)
-            for k, x in v["mapValue"].get("fields", {}).items()
+            for k, x in v["mapValue"].get(
+                "fields",
+                {}
+            ).items()
         }
 
     return None
 
 
 def carregar_colecao(colecao):
+
     documentos = []
     page_token = None
 
     try:
+
         while True:
+
             params = {
                 "pageSize": 1000
             }
@@ -634,6 +794,7 @@ def carregar_colecao(colecao):
             )
 
             if response.status_code != 200:
+
                 st.error(
                     f"Não foi possível carregar '{colecao}'. "
                     f"Firebase HTTP {response.status_code}."
@@ -643,7 +804,11 @@ def carregar_colecao(colecao):
 
             data = response.json()
 
-            for doc in data.get("documents", []):
+            for doc in data.get(
+                "documents",
+                []
+            ):
+
                 doc_id = doc["name"].split("/")[-1]
 
                 item = {
@@ -669,16 +834,19 @@ def carregar_colecao(colecao):
         return documentos
 
     except requests.exceptions.Timeout:
+
         st.error(
             f"Tempo esgotado ao consultar '{colecao}'."
         )
 
     except requests.exceptions.RequestException as e:
+
         st.error(
             f"Erro de conexão com o Firebase: {e}"
         )
 
     except Exception as e:
+
         st.error(
             f"Erro ao carregar '{colecao}': {e}"
         )
@@ -687,6 +855,7 @@ def carregar_colecao(colecao):
 
 
 def firestore_encode(v):
+
     if isinstance(v, bool):
         return {
             "booleanValue": v
@@ -708,6 +877,7 @@ def firestore_encode(v):
         }
 
     if isinstance(v, list):
+
         return {
             "arrayValue": {
                 "values": [
@@ -718,6 +888,7 @@ def firestore_encode(v):
         }
 
     if isinstance(v, dict):
+
         return {
             "mapValue": {
                 "fields": {
@@ -732,18 +903,27 @@ def firestore_encode(v):
     }
 
 
-def salvar_documento(colecao, doc_id, dados):
+def salvar_documento(
+    colecao,
+    doc_id,
+    dados,
+):
+    """
+    Salva os dados da carga.
+
+    O campo status é deliberadamente ignorado.
+    """
+
     try:
-        # ----------------------------------------------------
-        # IMPORTANTE:
-        # Mesmo que alguma carga antiga tenha "status",
-        # ele não será enviado novamente para o Firebase.
-        # ----------------------------------------------------
-        fields = {
-            k: firestore_encode(v)
-            for k, v in dados.items()
-            if k not in ("id", "status")
-        }
+
+        fields = {}
+
+        for k, v in dados.items():
+
+            if k in ("id", "status"):
+                continue
+
+            fields[k] = firestore_encode(v)
 
         response = requests.patch(
             f"{FIREBASE_BASE}/{colecao}/{doc_id}",
@@ -757,8 +937,9 @@ def salvar_documento(colecao, doc_id, dados):
             200,
             201,
         ):
+
             st.error(
-                f"Erro ao salvar no Firebase. "
+                "Erro ao salvar no Firebase. "
                 f"HTTP {response.status_code}: "
                 f"{response.text[:300]}"
             )
@@ -768,16 +949,19 @@ def salvar_documento(colecao, doc_id, dados):
         return True
 
     except requests.exceptions.Timeout:
+
         st.error(
             "Tempo esgotado ao salvar no Firebase."
         )
 
     except requests.exceptions.RequestException as e:
+
         st.error(
             f"Erro de conexão com o Firebase: {e}"
         )
 
     except Exception as e:
+
         st.error(
             f"Erro ao salvar no Firebase: {e}"
         )
@@ -785,8 +969,13 @@ def salvar_documento(colecao, doc_id, dados):
     return False
 
 
-def deletar_documento(colecao, doc_id):
+def deletar_documento(
+    colecao,
+    doc_id,
+):
+
     try:
+
         response = requests.delete(
             f"{FIREBASE_BASE}/{colecao}/{doc_id}",
             timeout=15,
@@ -796,8 +985,9 @@ def deletar_documento(colecao, doc_id):
             200,
             204,
         ):
+
             st.error(
-                f"Erro ao excluir documento. "
+                "Erro ao excluir documento. "
                 f"HTTP {response.status_code}."
             )
 
@@ -806,16 +996,19 @@ def deletar_documento(colecao, doc_id):
         return True
 
     except requests.exceptions.Timeout:
+
         st.error(
             "Tempo esgotado ao excluir do Firebase."
         )
 
     except requests.exceptions.RequestException as e:
+
         st.error(
             f"Erro de conexão com o Firebase: {e}"
         )
 
     except Exception as e:
+
         st.error(
             f"Erro ao excluir do Firebase: {e}"
         )
@@ -824,6 +1017,7 @@ def deletar_documento(colecao, doc_id):
 
 
 def atualizar_dados():
+
     st.session_state["cargas"] = carregar_colecao(
         "cargas"
     )
@@ -834,6 +1028,26 @@ def atualizar_dados():
 
     st.session_state["ajudantes"] = carregar_colecao(
         "ajudantes"
+    )
+
+    # Remove status de cargas que não existem mais.
+    ids_validos = {
+        str(c.get("id"))
+        for c in st.session_state["cargas"]
+    }
+
+    if "status_cartoes" in st.session_state:
+
+        st.session_state["status_cartoes"] = {
+            k: v
+            for k, v in st.session_state[
+                "status_cartoes"
+            ].items()
+            if k in ids_validos
+        }
+
+    inicializar_status_sessao(
+        st.session_state["cargas"]
     )
 
     st.session_state[
@@ -848,7 +1062,8 @@ def atualizar_dados():
 # ============================================================
 
 def carga_atrasada(carga):
-    status = calcular_status(carga)
+
+    status = obter_status_cartao(carga)
 
     if status == "Entregue / Concluído":
         return False
@@ -863,6 +1078,7 @@ def carga_atrasada(carga):
 
 
 def carga_saida_hoje(carga):
+
     data = converter_para_data(
         carga.get("data_saida")
     )
@@ -873,6 +1089,7 @@ def carga_saida_hoje(carga):
 
 
 def carga_entrega_hoje(carga):
+
     data = converter_para_data(
         carga.get("data_entrega")
     )
@@ -883,6 +1100,7 @@ def carga_entrega_hoje(carga):
 
 
 def dias_para_entrega(carga):
+
     data = converter_para_data(
         carga.get("data_entrega")
     )
@@ -891,17 +1109,20 @@ def dias_para_entrega(carga):
         return None
 
     return (
-        data - datetime.date.today()
+        data -
+        datetime.date.today()
     ).days
 
 
 def texto_prazo(carga):
+
     dias = dias_para_entrega(carga)
 
     if dias is None:
         return ""
 
     if carga_atrasada(carga):
+
         return (
             f"🔴 {abs(dias)} dia(s) atrasada"
         )
@@ -920,62 +1141,93 @@ def texto_prazo(carga):
 # ============================================================
 
 def preparar_dataframe(cargas):
-    df = pd.DataFrame(cargas)
 
-    if df.empty:
-        return df
+    registros = []
 
-    # --------------------------------------------------------
-    # Status é calculado para o relatório.
-    # Não é salvo no Firebase.
-    # --------------------------------------------------------
-    df["status"] = df.apply(
-        lambda row: calcular_status(
-            row.to_dict()
-        ),
-        axis=1,
-    )
+    for carga in cargas:
 
-    if "ajudantes" in df.columns:
-        df["ajudantes"] = df[
-            "ajudantes"
-        ].apply(
-            lambda x: ", ".join(
-                map(str, x)
-            )
-            if isinstance(x, list)
-            else str(x or "")
+        status = obter_status_cartao(carga)
+
+        ajudantes = carga.get(
+            "ajudantes",
+            []
         )
 
-    for col in (
-        "data_carga",
-        "data_saida",
-        "data_entrega",
-    ):
-        if col in df.columns:
-            df[col] = df[col].apply(
-                formatar_data_br
+        if isinstance(
+            ajudantes,
+            list,
+        ):
+
+            ajudantes_txt = ", ".join(
+                map(str, ajudantes)
             )
 
-    colunas = [
-        "id",
-        "motorista",
-        "destino",
-        "observacoes",
-        "ajudantes",
-        "data_carga",
-        "data_saida",
-        "data_entrega",
-        "status",
-    ]
+        else:
 
-    existentes = [
-        c
-        for c in colunas
-        if c in df.columns
-    ]
+            ajudantes_txt = str(
+                ajudantes or ""
+            )
 
-    return df[existentes]
+        registros.append(
+            {
+                "id": carga.get(
+                    "id",
+                    ""
+                ),
+
+                "motorista": carga.get(
+                    "motorista",
+                    ""
+                ),
+
+                "destino": carga.get(
+                    "destino",
+                    ""
+                ),
+
+                "observacoes": carga.get(
+                    "observacoes",
+                    ""
+                ),
+
+                "ajudantes": ajudantes_txt,
+
+                "data_carga": formatar_data_br(
+                    carga.get(
+                        "data_carga"
+                    )
+                ),
+
+                "data_saida": formatar_data_br(
+                    carga.get(
+                        "data_saida"
+                    )
+                ),
+
+                "data_entrega": formatar_data_br(
+                    carga.get(
+                        "data_entrega"
+                    )
+                ),
+
+                "status": status,
+            }
+        )
+
+    return pd.DataFrame(
+        registros,
+        columns=[
+            "id",
+            "motorista",
+            "destino",
+            "observacoes",
+            "ajudantes",
+            "data_carga",
+            "data_saida",
+            "data_entrega",
+            "status",
+        ],
+    )
 
 
 # ============================================================
@@ -983,10 +1235,13 @@ def preparar_dataframe(cargas):
 # ============================================================
 
 def gerar_excel_profissional(df):
+
     output = io.BytesIO()
 
     wb = openpyxl.Workbook()
+
     ws = wb.active
+
     ws.title = "Relatório de Cargas"
 
     header_font = Font(
@@ -1039,9 +1294,10 @@ def gerar_excel_profissional(df):
     ]
 
     for col_num, header in enumerate(
-        headers[:len(df.columns)],
+        headers,
         1,
     ):
+
         cell = ws.cell(
             1,
             col_num,
@@ -1060,10 +1316,12 @@ def gerar_excel_profissional(df):
         df.values,
         2,
     ):
+
         for col_num, value in enumerate(
             row,
             1,
         ):
+
             cell = ws.cell(
                 row_num,
                 col_num,
@@ -1073,6 +1331,7 @@ def gerar_excel_profissional(df):
 
             cell.font = data_font
             cell.border = border
+
             cell.alignment = Alignment(
                 horizontal=(
                     "center"
@@ -1088,10 +1347,12 @@ def gerar_excel_profissional(df):
             )
 
     for col in ws.columns:
+
         max_len = max(
             len(
                 str(
-                    c.value or ""
+                    c.value
+                    or ""
                 )
             )
             for c in col
@@ -1112,6 +1373,7 @@ def gerar_excel_profissional(df):
         )
 
     ws.freeze_panes = "A2"
+
     ws.auto_filter.ref = ws.dimensions
 
     wb.save(output)
@@ -1123,7 +1385,43 @@ def gerar_excel_profissional(df):
 # PDF
 # ============================================================
 
+def pdf_text(value):
+
+    texto = str(
+        value if value is not None
+        else ""
+    )
+
+    substituicoes = {
+        "🚚": "",
+        "📦": "",
+        "⏳": "",
+        "✅": "",
+        "🔴": "",
+        "🟠": "",
+        "🟡": "",
+        "🟢": "",
+        "📌": "",
+        "👥": "",
+        "📝": "",
+    }
+
+    for antigo, novo in substituicoes.items():
+        texto = texto.replace(
+            antigo,
+            novo,
+        )
+
+    return texto.encode(
+        "latin-1",
+        errors="replace",
+    ).decode(
+        "latin-1"
+    )
+
+
 def gerar_pdf(df):
+
     pdf = FPDF(
         orientation="L",
         unit="mm",
@@ -1141,7 +1439,7 @@ def gerar_pdf(df):
     pdf.cell(
         277,
         8,
-        "Relatório de Cargas",
+        "Relatorio de Cargas",
         ln=True,
         align="C",
     )
@@ -1155,8 +1453,10 @@ def gerar_pdf(df):
     pdf.cell(
         277,
         5,
-        f"Data de geração: "
-        f"{datetime.date.today():%d/%m/%Y}",
+        pdf_text(
+            f"Data de geracao: "
+            f"{datetime.date.today():%d/%m/%Y}"
+        ),
         ln=True,
         align="C",
     )
@@ -1169,7 +1469,7 @@ def gerar_pdf(df):
         "Destino",
         "Ajudantes",
         "Carga",
-        "Saída",
+        "Saida",
         "Entrega",
         "Status",
     ]
@@ -1207,10 +1507,11 @@ def gerar_pdf(df):
         widths,
         headers,
     ):
+
         pdf.cell(
             width,
             7,
-            header,
+            pdf_text(header),
             1,
             0,
             "C",
@@ -1232,60 +1533,74 @@ def gerar_pdf(df):
     )
 
     for _, row in df.iterrows():
+
         vals = [
-            str(row.get("id", "")),
+            str(
+                row.get(
+                    "id",
+                    "",
+                )
+            ),
+
             str(
                 row.get(
                     "motorista",
                     "",
                 )
             )[:22],
+
             str(
                 row.get(
                     "destino",
                     "",
                 )
             )[:30],
+
             str(
                 row.get(
                     "ajudantes",
                     "",
                 )
             )[:25],
+
             str(
                 row.get(
                     "data_carga",
                     "",
                 )
             ),
+
             str(
                 row.get(
                     "data_saida",
                     "",
                 )
             ),
+
             str(
                 row.get(
                     "data_entrega",
                     "",
                 )
             ),
+
             str(
                 row.get(
                     "status",
                     "",
                 )
-            )[:18],
+            )[:24],
         ]
 
         for width, value in zip(
             widths,
             vals,
         ):
+
             pdf.cell(
                 width,
                 6,
-                value,
+                pdf_text(value),
                 1,
                 0,
                 (
@@ -1312,7 +1627,9 @@ def grafico_status_html(
     contagem,
     total,
 ):
+
     if not total:
+
         return (
             '<div class="chart-card">'
             '<div class="chart-empty">'
@@ -1322,15 +1639,18 @@ def grafico_status_html(
         )
 
     partes = []
+
     inicio = 0
 
     for status in STATUS:
+
         valor = contagem.get(
             status,
             0,
         )
 
         if valor:
+
             fim = (
                 inicio
                 + valor / total * 100
@@ -1349,12 +1669,17 @@ def grafico_status_html(
         <div class="legend-row">
             <span
                 class="legend-dot"
-                style="background:{STATUS_COLORS[s]}"
-            ></span>
+                style="
+                    background:
+                    {STATUS_COLORS[s]}
+                ">
+            </span>
 
             <span>{esc(s)}</span>
 
-            <b>{contagem.get(s, 0)}</b>
+            <b>
+                {contagem.get(s, 0)}
+            </b>
         </div>
         """
         for s in STATUS
@@ -1383,10 +1708,19 @@ def grafico_status_html(
                     )
                 "
             >
+
                 <div class="donut-hole">
-                    <strong>{total}</strong>
-                    <span>cargas</span>
+
+                    <strong>
+                        {total}
+                    </strong>
+
+                    <span>
+                        cargas
+                    </span>
+
                 </div>
+
             </div>
 
             <div class="legend-list">
@@ -1394,6 +1728,7 @@ def grafico_status_html(
             </div>
 
         </div>
+
     </div>
     """
 
@@ -1403,6 +1738,7 @@ def grafico_barras_html(
     dados,
     limite=8,
 ):
+
     pares = sorted(
         dados.items(),
         key=lambda x: x[1],
@@ -1410,8 +1746,10 @@ def grafico_barras_html(
     )[:limite]
 
     if not pares:
+
         return f"""
         <div class="chart-card">
+
             <div class="chart-heading">
                 {esc(titulo)}
             </div>
@@ -1419,6 +1757,7 @@ def grafico_barras_html(
             <div class="chart-empty">
                 Nenhum dado disponível.
             </div>
+
         </div>
         """
 
@@ -1429,6 +1768,7 @@ def grafico_barras_html(
     linhas = ""
 
     for nome, valor in pares:
+
         largura = max(
             7,
             valor / maximo * 100,
@@ -1445,10 +1785,16 @@ def grafico_barras_html(
             </div>
 
             <div class="bar-track">
+
                 <div
                     class="bar-fill"
-                    style="width:{largura:.1f}%"
-                ></div>
+                    style="
+                        width:
+                        {largura:.1f}%
+                    "
+                >
+                </div>
+
             </div>
 
             <div class="bar-value">
@@ -1462,11 +1808,13 @@ def grafico_barras_html(
     <div class="chart-card">
 
         <div class="chart-heading">
+
             {esc(titulo)}
 
             <small>
                 Top {len(pares)}
             </small>
+
         </div>
 
         <div class="bar-list">
@@ -1482,21 +1830,33 @@ def grafico_barras_html(
 # ============================================================
 
 if "cargas" not in st.session_state:
+
     st.session_state["cargas"] = (
         carregar_colecao("cargas")
     )
 
+
 if "motoristas" not in st.session_state:
+
     st.session_state["motoristas"] = (
         carregar_colecao("motoristas")
     )
 
+
 if "ajudantes" not in st.session_state:
+
     st.session_state["ajudantes"] = (
         carregar_colecao("ajudantes")
     )
 
+
+if "status_cartoes" not in st.session_state:
+
+    st.session_state["status_cartoes"] = {}
+
+
 if "ultima_atualizacao" not in st.session_state:
+
     st.session_state[
         "ultima_atualizacao"
     ] = datetime.datetime.now().strftime(
@@ -1508,19 +1868,37 @@ cargas_lista = st.session_state[
     "cargas"
 ]
 
+
+# Inicializa status somente na sessão.
+inicializar_status_sessao(
+    cargas_lista
+)
+
+
 motoristas_lista = [
-    m.get("nome", "")
+    m.get(
+        "nome",
+        "",
+    )
+
     for m in st.session_state[
         "motoristas"
     ]
+
     if m.get("nome")
 ]
 
+
 ajudantes_lista = [
-    a.get("nome", "")
+    a.get(
+        "nome",
+        "",
+    )
+
     for a in st.session_state[
         "ajudantes"
     ]
+
     if a.get("nome")
 ]
 
@@ -1566,21 +1944,22 @@ col_up1, col_up2 = st.columns(
 
 
 with col_up1:
-    if st.session_state.get(
-        "ultima_atualizacao"
-    ):
-        st.caption(
-            "🕐 Última atualização: "
-            f"{st.session_state['ultima_atualizacao']}"
-        )
+
+    st.caption(
+        "🕐 Última atualização: "
+        f"{st.session_state['ultima_atualizacao']}"
+    )
 
 
 with col_up2:
+
     if st.button(
         "🔄 Atualizar",
         use_container_width=True,
     ):
+
         atualizar_dados()
+
         st.rerun()
 
 
@@ -1597,20 +1976,29 @@ if menu == "📋 Painel (Kanban)":
         "📊 Torre de Controle da Operação"
     )
 
-    total = len(cargas_lista)
+    total = len(
+        cargas_lista
+    )
+
+
+    # --------------------------------------------------------
+    # CONTAGEM DOS STATUS DA SESSÃO
+    # --------------------------------------------------------
 
     contagem = {
-        s: 0
-        for s in STATUS
+        status: 0
+        for status in STATUS
     }
 
     for carga in cargas_lista:
-        status = calcular_status(
+
+        status = obter_status_cartao(
             carga
         )
 
         if status in contagem:
             contagem[status] += 1
+
 
     atrasadas = sum(
         carga_atrasada(c)
@@ -1627,6 +2015,11 @@ if menu == "📋 Painel (Kanban)":
         for c in cargas_lista
     )
 
+
+    # --------------------------------------------------------
+    # MÉTRICAS
+    # --------------------------------------------------------
+
     m1, m2, m3, m4, m5 = st.columns(
         5
     )
@@ -1638,6 +2031,7 @@ if menu == "📋 Painel (Kanban)":
             "Planejamentos cadastrados",
             "blue",
         ),
+
         (
             "AGUARDANDO",
             contagem[
@@ -1646,6 +2040,7 @@ if menu == "📋 Painel (Kanban)":
             "Aguardando carregamento",
             "yellow",
         ),
+
         (
             "EM TRÂNSITO",
             contagem[
@@ -1654,6 +2049,7 @@ if menu == "📋 Painel (Kanban)":
             "Viagens iniciadas",
             "green",
         ),
+
         (
             "ENTREGUES",
             contagem[
@@ -1662,6 +2058,7 @@ if menu == "📋 Painel (Kanban)":
             "Operações concluídas",
             "purple",
         ),
+
         (
             "ATRASADAS",
             atrasadas,
@@ -1669,6 +2066,7 @@ if menu == "📋 Painel (Kanban)":
             "red",
         ),
     ]
+
 
     for col, (
         titulo,
@@ -1687,41 +2085,66 @@ if menu == "📋 Painel (Kanban)":
     ):
 
         with col:
+
             st.markdown(
                 f"""
-                <div class="metric-card metric-{cor}">
-                    <div class="metric-title">
+                <div
+                    class="metric-card
+                           metric-{cor}"
+                >
+
+                    <div
+                        class="metric-title"
+                    >
                         {titulo}
                     </div>
 
-                    <div class="metric-value">
+                    <div
+                        class="metric-value"
+                    >
                         {valor}
                     </div>
 
-                    <div class="metric-subtitle">
+                    <div
+                        class="metric-subtitle"
+                    >
                         {sub}
                     </div>
+
                 </div>
                 """,
                 unsafe_allow_html=True,
             )
 
+
+    # --------------------------------------------------------
+    # ALERTAS
+    # --------------------------------------------------------
+
     if atrasadas:
+
         st.markdown(
             f"""
-            <div class="alert-box alert-red">
+            <div
+                class="alert-box alert-red"
+            >
                 🔴 <b>Atenção:</b>
-                {atrasadas} carga(s) estão com
-                prazo de entrega vencido.
+                {atrasadas} carga(s)
+                estão com prazo
+                de entrega vencido.
             </div>
             """,
             unsafe_allow_html=True,
         )
 
+
     if saidas_hoje:
+
         st.markdown(
             f"""
-            <div class="alert-box alert-yellow">
+            <div
+                class="alert-box alert-yellow"
+            >
                 🚚 <b>Saídas de hoje:</b>
                 {saidas_hoje} carga(s).
             </div>
@@ -1729,10 +2152,14 @@ if menu == "📋 Painel (Kanban)":
             unsafe_allow_html=True,
         )
 
+
     if entregas_hoje:
+
         st.markdown(
             f"""
-            <div class="alert-box alert-yellow">
+            <div
+                class="alert-box alert-yellow"
+            >
                 📦 <b>Entregas de hoje:</b>
                 {entregas_hoje} carga(s).
             </div>
@@ -1740,50 +2167,55 @@ if menu == "📋 Painel (Kanban)":
             unsafe_allow_html=True,
         )
 
+
     if (
         not atrasadas
         and not saidas_hoje
         and not entregas_hoje
         and total
     ):
+
         st.markdown(
             """
-            <div class="alert-box alert-green">
+            <div
+                class="alert-box alert-green"
+            >
                 🟢 <b>Operação normal:</b>
-                nenhuma carga atrasada ou
-                com alerta para hoje.
+                nenhuma carga atrasada
+                ou com alerta para hoje.
             </div>
             """,
             unsafe_allow_html=True,
         )
 
-    # ========================================================
+
+    # --------------------------------------------------------
     # FILTROS
-    # ========================================================
+    # --------------------------------------------------------
 
     st.markdown(
         "### 🔎 Filtros da Operação"
     )
 
     f1, f2, f3, f4 = st.columns(
-        [
-            2,
-            1.5,
-            1.5,
-            2,
-        ]
+        [2, 1.5, 1.5, 2]
     )
 
+
     with f1:
+
         motorista_filtro = st.selectbox(
             "Motorista",
             [
                 "Todos os Motoristas"
             ]
             + motoristas_lista,
+            key="kanban_motorista",
         )
 
+
     with f2:
+
         data_ini = st.date_input(
             "Data inicial",
             value=(
@@ -1792,9 +2224,12 @@ if menu == "📋 Painel (Kanban)":
                     days=7
                 )
             ),
+            key="kanban_data_ini",
         )
 
+
     with f3:
+
         data_fim = st.date_input(
             "Data final",
             value=(
@@ -1803,36 +2238,56 @@ if menu == "📋 Painel (Kanban)":
                     days=30
                 )
             ),
+            key="kanban_data_fim",
         )
 
+
     with f4:
+
         pesquisa = st.text_input(
             "Pesquisar",
             placeholder=(
-                "ID, motorista, destino "
-                "ou observação..."
+                "ID, motorista, "
+                "destino ou observação..."
             ),
+            key="kanban_pesquisa",
         )
+
+
+    # --------------------------------------------------------
+    # FILTRO DAS CARGAS
+    # --------------------------------------------------------
+
+    cargas_filtradas = []
+
 
     if data_ini > data_fim:
 
         st.error(
-            "A data inicial não pode ser "
-            "maior que a data final."
+            "A data inicial não pode "
+            "ser maior que a data final."
         )
-
-        cargas_filtradas = []
 
     else:
 
-        cargas_filtradas = []
+        termo = (
+            pesquisa
+            .lower()
+            .strip()
+        )
 
-        for c in cargas_lista:
+
+        for carga in cargas_lista:
 
             data_ref = converter_para_data(
-                c.get("data_saida")
-                or c.get("data_carga")
+                carga.get(
+                    "data_saida"
+                )
+                or carga.get(
+                    "data_carga"
+                )
             )
+
 
             dentro_periodo = (
                 data_ref is None
@@ -1841,77 +2296,106 @@ if menu == "📋 Painel (Kanban)":
                 <= data_fim
             )
 
+
             motorista_ok = (
                 motorista_filtro
                 == "Todos os Motoristas"
-                or c.get("motorista")
+                or carga.get(
+                    "motorista"
+                )
                 == motorista_filtro
             )
 
-            termo = (
-                pesquisa
-                .lower()
-                .strip()
-            )
-
-            status_calculado = (
-                calcular_status(c)
-            )
 
             texto_busca = " ".join(
-                str(c.get(campo, ""))
+                str(
+                    carga.get(
+                        campo,
+                        "",
+                    )
+                )
+
                 for campo in (
                     "id",
                     "motorista",
                     "destino",
                     "observacoes",
                 )
-            ) + " " + status_calculado
+            ).lower()
 
-            texto_busca = texto_busca.lower()
 
             busca_ok = (
                 not termo
-                or termo in texto_busca
+                or termo
+                in texto_busca
             )
+
 
             if (
                 dentro_periodo
                 and motorista_ok
                 and busca_ok
             ):
-                cargas_filtradas.append(c)
+
+                cargas_filtradas.append(
+                    carga
+                )
+
 
     st.caption(
         f"🔎 {len(cargas_filtradas)} "
-        f"carga(s) encontrada(s)."
+        "carga(s) encontrada(s)."
     )
 
-    # ========================================================
+
+    # --------------------------------------------------------
     # KANBAN
-    # ========================================================
+    # --------------------------------------------------------
 
-    kanban_cols = st.columns(4)
+    kanban_cols = st.columns(
+        4,
+        gap="small",
+    )
 
-    for idx, status in enumerate(STATUS):
+
+    for idx, status_coluna in enumerate(
+        STATUS
+    ):
 
         with kanban_cols[idx]:
 
             lista_status = [
-                c
-                for c in cargas_filtradas
-                if calcular_status(c)
-                == status
+                carga
+                for carga in cargas_filtradas
+                if obter_status_cartao(
+                    carga
+                )
+                == status_coluna
             ]
 
+
+            # Cabeçalho da coluna
             st.markdown(
                 f"""
-                <div class="kanban-header">
+                <div
+                    class="kanban-header"
+                    style="
+                        border-top:
+                        3px solid
+                        {STATUS_COLORS[
+                            status_coluna
+                        ]};
+                    "
+                >
 
-                    {STATUS_ICONS[status]}
-                    {status}
+                    {STATUS_ICONS[
+                        status_coluna
+                    ]}
+                    {status_coluna}
 
-                    <div class="kanban-count">
+                    <div
+                        class="kanban-count"
+                    >
                         {len(lista_status)}
                         carga(s)
                     </div>
@@ -1920,6 +2404,25 @@ if menu == "📋 Painel (Kanban)":
                 """,
                 unsafe_allow_html=True,
             )
+
+
+            if not lista_status:
+
+                st.markdown(
+                    """
+                    <div
+                        class="kanban-empty"
+                    >
+                        Nenhuma carga
+                    </div>
+                    """,
+                    unsafe_allow_html=True,
+                )
+
+
+            # ------------------------------------------------
+            # CARTÕES
+            # ------------------------------------------------
 
             for carga in lista_status:
 
@@ -1956,15 +2459,18 @@ if menu == "📋 Painel (Kanban)":
                     [],
                 )
 
+
                 if not isinstance(
                     ajudantes,
                     list,
                 ):
+
                     ajudantes = (
                         [ajudantes]
                         if ajudantes
                         else []
                     )
+
 
                 ajudantes_txt = ", ".join(
                     map(
@@ -1973,27 +2479,35 @@ if menu == "📋 Painel (Kanban)":
                     )
                 )
 
+
                 atrasada = (
-                    carga_atrasada(carga)
+                    carga_atrasada(
+                        carga
+                    )
                 )
 
                 saida_hoje = (
-                    carga_saida_hoje(carga)
+                    carga_saida_hoje(
+                        carga
+                    )
                 )
 
                 entrega_hoje = (
-                    carga_entrega_hoje(carga)
+                    carga_entrega_hoje(
+                        carga
+                    )
                 )
 
-                # --------------------------------------------
+
+                # ------------------------------------------------
                 # BADGES
-                # --------------------------------------------
+                # ------------------------------------------------
 
                 if atrasada:
 
                     badge = (
-                        '<span class="badge '
-                        'badge-red">'
+                        '<span '
+                        'class="badge badge-red">'
                         '🔴 ATRASADA'
                         '</span>'
                     )
@@ -2003,8 +2517,8 @@ if menu == "📋 Painel (Kanban)":
                 elif entrega_hoje:
 
                     badge = (
-                        '<span class="badge '
-                        'badge-yellow">'
+                        '<span '
+                        'class="badge badge-yellow">'
                         '📦 ENTREGA HOJE'
                         '</span>'
                     )
@@ -2014,8 +2528,8 @@ if menu == "📋 Painel (Kanban)":
                 elif saida_hoje:
 
                     badge = (
-                        '<span class="badge '
-                        'badge-yellow">'
+                        '<span '
+                        'class="badge badge-yellow">'
                         '🚚 SAI HOJE'
                         '</span>'
                     )
@@ -2025,64 +2539,69 @@ if menu == "📋 Painel (Kanban)":
                 else:
 
                     badge = (
-                        '<span class="badge '
-                        'badge-green">'
+                        '<span '
+                        'class="badge badge-green">'
                         '✓ NO PRAZO'
                         '</span>'
                     )
 
                     borda = STATUS_COLORS.get(
-                        status,
+                        status_coluna,
                         "#64748b",
                     )
+
 
                 prazo = texto_prazo(
                     carga
                 )
 
+
                 if prazo:
+
                     badge += (
-                        '<span class="badge '
-                        'badge-blue">'
-                        f"{esc(prazo)}"
-                        "</span>"
+                        '<span '
+                        'class="badge badge-blue">'
+                        f'{esc(prazo)}'
+                        '</span>'
                     )
 
-                # --------------------------------------------
-                # STATUS CALCULADO
-                # --------------------------------------------
 
-                badge += (
-                    '<span class="badge '
-                    'badge-purple">'
-                    f'{STATUS_ICONS[status]} '
-                    f'{esc(status)}'
-                    '</span>'
-                )
+                # ------------------------------------------------
+                # INFORMAÇÕES EXTRAS
+                # ------------------------------------------------
 
                 extra = ""
+
 
                 if ajudantes_txt:
 
                     extra += (
-                        '<div class="card-meta">'
+                        '<div '
+                        'class="card-meta">'
                         '👥 Ajudantes: '
                         f'<strong>'
                         f'{esc(ajudantes_txt)}'
-                        f'</strong>'
+                        '</strong>'
                         '</div>'
                     )
+
 
                 if observacoes:
 
                     extra += (
-                        '<div class="card-meta">'
+                        '<div '
+                        'class="card-meta">'
                         '📝 Obs.: '
                         f'<strong>'
                         f'{esc(observacoes)}'
-                        f'</strong>'
+                        '</strong>'
                         '</div>'
                     )
+
+
+                # ------------------------------------------------
+                # CARTÃO
+                # ------------------------------------------------
 
                 render_html(
                     f"""
@@ -2090,7 +2609,8 @@ if menu == "📋 Painel (Kanban)":
                         class="kanban-card"
                         style="
                             border-left:
-                            3px solid {borda};
+                            3px solid
+                            {borda};
                         "
                     >
 
@@ -2098,73 +2618,83 @@ if menu == "📋 Painel (Kanban)":
                             {badge}
                         </div>
 
-                        <div class="card-id">
-                            📌 PLANEJAMENTO #
-                            {esc(carga_id)}
+                        <div
+                            class="card-id"
+                        >
+                            📌 PLANEJAMENTO
+                            #{esc(carga_id)}
                         </div>
 
-                        <div class="card-driver">
+                        <div
+                            class="card-driver"
+                        >
                             🚚 {esc(motorista)}
                         </div>
 
-                        <div class="card-label">
+                        <div
+                            class="card-label"
+                        >
                             Destino
                         </div>
 
-                        <div class="card-destination">
+                        <div
+                            class=
+                            "card-destination"
+                        >
                             {esc(destino)}
                         </div>
 
-                        <div class="card-divider"></div>
+                        <div
+                            class="card-divider"
+                        >
+                        </div>
 
-                        <div class="card-meta">
-
-                            📅 Carregamento:
+                        <div
+                            class="card-meta"
+                        >
+                            📅 Carga:
                             <strong>
-                                {
-                                    esc(
-                                        formatar_data_br(
-                                            carga.get(
-                                                "data_carga"
-                                            )
+                                {esc(
+                                    formatar_data_br(
+                                        carga.get(
+                                            "data_carga"
                                         )
-                                        or "—"
                                     )
-                                }
+                                    or "—"
+                                )}
                             </strong>
+                        </div>
 
-                            <br>
-
+                        <div
+                            class="card-meta"
+                        >
                             🚚 Saída:
                             <strong>
-                                {
-                                    esc(
-                                        formatar_data_br(
-                                            carga.get(
-                                                "data_saida"
-                                            )
+                                {esc(
+                                    formatar_data_br(
+                                        carga.get(
+                                            "data_saida"
                                         )
-                                        or "—"
                                     )
-                                }
+                                    or "—"
+                                )}
                             </strong>
+                        </div>
 
-                            &nbsp;•&nbsp;
-
-                            Entrega:
+                        <div
+                            class="card-meta"
+                        >
+                            📦 Entrega:
                             <strong>
-                                {
-                                    esc(
-                                        formatar_data_br(
-                                            carga.get(
-                                                "data_entrega"
-                                            )
+                                {esc(
+                                    formatar_data_br(
+                                        carga.get(
+                                            "data_entrega"
                                         )
-                                        or "—"
                                     )
-                                }
+                                    or "—"
+                                )}
                             </strong>
-
                         </div>
 
                         {extra}
@@ -2173,47 +2703,144 @@ if menu == "📋 Painel (Kanban)":
                     """,
                 )
 
-                # =================================================
-                # BOTÕES
-                # =================================================
 
-                b1, b2 = st.columns(2)
+                # ------------------------------------------------
+                # BOTÕES DE MOVIMENTAÇÃO
+                # ------------------------------------------------
+
+                indice_status = STATUS.index(
+                    status_coluna
+                )
+
+
+                b1, b2 = st.columns(
+                    2,
+                    gap="small",
+                )
+
 
                 with b1:
 
-                    editar = st.button(
+                    if indice_status > 0:
+
+                        if st.button(
+                            "⬅️ Voltar",
+                            key=(
+                                f"voltar_"
+                                f"{carga_id}"
+                            ),
+                            use_container_width=True,
+                        ):
+
+                            voltar_status(
+                                carga_id
+                            )
+
+                            st.rerun()
+
+                    else:
+
+                        st.button(
+                            "⬅️ Voltar",
+                            key=(
+                                f"voltar_disabled_"
+                                f"{carga_id}"
+                            ),
+                            disabled=True,
+                            use_container_width=True,
+                        )
+
+
+                with b2:
+
+                    if indice_status < len(
+                        STATUS
+                    ) - 1:
+
+                        if st.button(
+                            "Avançar ➡️",
+                            key=(
+                                f"avancar_"
+                                f"{carga_id}"
+                            ),
+                            type="primary",
+                            use_container_width=True,
+                        ):
+
+                            avancar_status(
+                                carga_id
+                            )
+
+                            st.rerun()
+
+                    else:
+
+                        st.button(
+                            "Concluído ✅",
+                            key=(
+                                f"concluido_"
+                                f"{carga_id}"
+                            ),
+                            disabled=True,
+                            use_container_width=True,
+                        )
+
+
+                st.caption(
+                    "Status do cartão é controlado "
+                    "na sessão e não é salvo no Firebase."
+                )
+
+
+                # ------------------------------------------------
+                # EDITAR / EXCLUIR
+                # ------------------------------------------------
+
+                e1, e2 = st.columns(
+                    2,
+                    gap="small",
+                )
+
+
+                with e1:
+
+                    if st.button(
                         "✏️ Editar",
                         key=(
                             f"edit_"
                             f"{carga_id}"
                         ),
                         use_container_width=True,
-                    )
+                    ):
 
-                    if editar:
                         st.session_state[
                             f"editando_{carga_id}"
                         ] = True
 
-                with b2:
+                        st.rerun()
 
-                    excluir = st.button(
+
+                with e2:
+
+                    if st.button(
                         "🗑️ Excluir",
                         key=(
                             f"delete_"
                             f"{carga_id}"
                         ),
                         use_container_width=True,
-                    )
+                    ):
 
-                    if excluir:
                         st.session_state[
                             f"confirmar_{carga_id}"
                         ] = True
 
-                # =================================================
-                # CONFIRMAÇÃO EXCLUSÃO
-                # =================================================
+                        st.rerun()
+
+
+                # ------------------------------------------------
+                # CONFIRMAÇÃO DE EXCLUSÃO
+                # ------------------------------------------------
 
                 if st.session_state.get(
                     f"confirmar_{carga_id}",
@@ -2225,7 +2852,11 @@ if menu == "📋 Painel (Kanban)":
                         f"#{carga_id}?"
                     )
 
-                    x1, x2 = st.columns(2)
+
+                    x1, x2 = st.columns(
+                        2
+                    )
+
 
                     with x1:
 
@@ -2252,13 +2883,26 @@ if menu == "📋 Painel (Kanban)":
                                     in st.session_state[
                                         "cargas"
                                     ]
+
                                     if str(
-                                        x.get("id")
+                                        x.get(
+                                            "id"
+                                        )
                                     )
                                     != carga_id
                                 ]
 
+
+                                st.session_state[
+                                    "status_cartoes"
+                                ].pop(
+                                    carga_id,
+                                    None,
+                                )
+
+
                                 st.rerun()
+
 
                     with x2:
 
@@ -2277,9 +2921,10 @@ if menu == "📋 Painel (Kanban)":
 
                             st.rerun()
 
-                # =================================================
+
+                # ------------------------------------------------
                 # EDIÇÃO
-                # =================================================
+                # ------------------------------------------------
 
                 if st.session_state.get(
                     f"editando_{carga_id}",
@@ -2296,63 +2941,69 @@ if menu == "📋 Painel (Kanban)":
                             f"#{esc(carga_id)}**"
                         )
 
+
                         mot = carga.get(
                             "motorista",
                             "",
                         )
 
-                        mot_idx = (
-                            motoristas_lista.index(
-                                mot
+
+                        if mot in motoristas_lista:
+
+                            mot_idx = (
+                                motoristas_lista.index(
+                                    mot
+                                )
                             )
-                            if mot
-                            in motoristas_lista
-                            else 0
+
+                        else:
+
+                            mot_idx = 0
+
+
+                        novo_motorista = st.selectbox(
+                            "Motorista",
+                            motoristas_lista
+                            or [""],
+                            index=mot_idx,
                         )
 
-                        novo_motorista = (
-                            st.selectbox(
-                                "Motorista",
-                                motoristas_lista
-                                or [""],
-                                index=mot_idx,
-                            )
+
+                        novo_destino = st.text_input(
+                            "Destino",
+                            value=str(
+                                carga.get(
+                                    "destino",
+                                    "",
+                                )
+                            ),
                         )
 
-                        novo_destino = (
-                            st.text_input(
-                                "Destino",
-                                value=str(
-                                    carga.get(
-                                        "destino",
-                                        "",
-                                    )
-                                ),
-                            )
+
+                        novas_obs = st.text_area(
+                            "Observações / Rota",
+                            value=str(
+                                carga.get(
+                                    "observacoes",
+                                    "",
+                                )
+                            ),
                         )
 
-                        novas_obs = (
-                            st.text_area(
-                                "Observações / Rota",
-                                value=str(
-                                    carga.get(
-                                        "observacoes",
-                                        "",
-                                    )
-                                ),
-                            )
-                        )
 
                         atuais = carga.get(
                             "ajudantes",
                             [],
                         )
 
+
                         if not isinstance(
                             atuais,
                             list,
                         ):
+
                             atuais = []
+
 
                         novos_ajudantes = (
                             st.multiselect(
@@ -2367,54 +3018,45 @@ if menu == "📋 Painel (Kanban)":
                             )
                         )
 
-                        nova_carga = (
-                            st.date_input(
-                                "Data de Carregamento",
-                                value=(
-                                    converter_para_data(
-                                        carga.get(
-                                            "data_carga"
-                                        )
+
+                        nova_carga = st.date_input(
+                            "Data de Carregamento",
+                            value=(
+                                converter_para_data(
+                                    carga.get(
+                                        "data_carga"
                                     )
-                                    or datetime.date.today()
-                                ),
-                            )
+                                )
+                                or datetime.date.today()
+                            ),
                         )
 
-                        nova_saida = (
-                            st.date_input(
-                                "Data de Saída",
-                                value=(
-                                    converter_para_data(
-                                        carga.get(
-                                            "data_saida"
-                                        )
+
+                        nova_saida = st.date_input(
+                            "Data de Saída",
+                            value=(
+                                converter_para_data(
+                                    carga.get(
+                                        "data_saida"
                                     )
-                                    or datetime.date.today()
-                                ),
-                            )
+                                )
+                                or datetime.date.today()
+                            ),
                         )
 
-                        nova_entrega = (
-                            st.date_input(
-                                "Data de Entrega",
-                                value=(
-                                    converter_para_data(
-                                        carga.get(
-                                            "data_entrega"
-                                        )
+
+                        nova_entrega = st.date_input(
+                            "Data de Entrega",
+                            value=(
+                                converter_para_data(
+                                    carga.get(
+                                        "data_entrega"
                                     )
-                                    or datetime.date.today()
-                                ),
-                            )
+                                )
+                                or datetime.date.today()
+                            ),
                         )
 
-                        st.info(
-                            "ℹ️ O status não precisa "
-                            "ser salvo. Ele será "
-                            "calculado automaticamente "
-                            "pelas datas."
-                        )
 
                         salvar_edicao = (
                             st.form_submit_button(
@@ -2424,84 +3066,89 @@ if menu == "📋 Painel (Kanban)":
                             )
                         )
 
+
                         if salvar_edicao:
 
-                            if (
-                                nova_saida
-                                < nova_carga
-                            ):
-                                st.error(
-                                    "A data de saída "
-                                    "não pode ser "
-                                    "anterior à data "
-                                    "de carregamento."
-                                )
+                            if nova_entrega < nova_saida:
 
-                            elif (
-                                nova_entrega
-                                < nova_saida
-                            ):
                                 st.error(
                                     "A data de entrega "
-                                    "não pode ser "
-                                    "anterior à data "
-                                    "de saída."
+                                    "não pode ser anterior "
+                                    "à data de saída."
+                                )
+
+                            elif nova_saida < nova_carga:
+
+                                st.error(
+                                    "A data de saída "
+                                    "não pode ser anterior "
+                                    "à data de carregamento."
                                 )
 
                             else:
 
-                                carga[
-                                    "motorista"
-                                ] = novo_motorista
+                                dados_atualizados = {
+                                    "id": carga_id,
 
-                                carga[
-                                    "destino"
-                                ] = novo_destino
+                                    "motorista":
+                                        novo_motorista,
 
-                                carga[
-                                    "observacoes"
-                                ] = novas_obs
+                                    "destino":
+                                        novo_destino,
 
-                                carga[
-                                    "ajudantes"
-                                ] = novos_ajudantes
+                                    "observacoes":
+                                        novas_obs,
 
-                                carga[
-                                    "data_carga"
-                                ] = str(
-                                    nova_carga
-                                )
+                                    "ajudantes":
+                                        novos_ajudantes,
 
-                                carga[
-                                    "data_saida"
-                                ] = str(
-                                    nova_saida
-                                )
+                                    "data_carga":
+                                        str(nova_carga),
 
-                                carga[
-                                    "data_entrega"
-                                ] = str(
-                                    nova_entrega
-                                )
+                                    "data_saida":
+                                        str(nova_saida),
 
-                                # --------------------------------
-                                # REMOVE STATUS ANTIGO DA MEMÓRIA
-                                # --------------------------------
+                                    "data_entrega":
+                                        str(nova_entrega),
+                                }
 
-                                carga.pop(
-                                    "status",
-                                    None,
-                                )
 
                                 if salvar_documento(
                                     "cargas",
                                     carga_id,
-                                    carga,
+                                    dados_atualizados,
                                 ):
+
+                                    for i, item in enumerate(
+                                        st.session_state[
+                                            "cargas"
+                                        ]
+                                    ):
+
+                                        if str(
+                                            item.get(
+                                                "id"
+                                            )
+                                        ) == carga_id:
+
+                                            st.session_state[
+                                                "cargas"
+                                            ][i] = (
+                                                dados_atualizados
+                                            )
+
+                                            break
+
 
                                     st.session_state[
                                         f"editando_{carga_id}"
                                     ] = False
+
+
+                                    st.success(
+                                        "Alterações "
+                                        "salvas com sucesso."
+                                    )
 
                                     st.rerun()
 
@@ -2516,29 +3163,28 @@ elif menu == "➕ Nova Carga":
         "➕ Cadastrar Novo Agendamento de Carga"
     )
 
+
     st.info(
         "📌 Informe o número do planejamento "
         "exatamente como recebido do sistema "
         "de montagem de cargas."
     )
 
-    st.info(
-        "ℹ️ O status é automático e será "
-        "determinado pelas datas da carga."
-    )
 
     with st.form(
         "form_nova_carga"
     ):
 
-        id_planejamento = (
-            st.text_input(
-                "Número do Planejamento / ID da Carga",
-                placeholder="Ex.: 1042",
-            )
+        id_planejamento = st.text_input(
+            "Número do Planejamento / ID da Carga",
+            placeholder="Ex.: 1042",
         )
 
-        c1, c2 = st.columns(2)
+
+        c1, c2 = st.columns(
+            2
+        )
+
 
         with c1:
 
@@ -2548,6 +3194,7 @@ elif menu == "➕ Nova Carga":
                 or ["Nenhum cadastrado"],
             )
 
+
             destino = st.text_input(
                 "Região / Cidades de Destino",
                 placeholder=(
@@ -2555,13 +3202,15 @@ elif menu == "➕ Nova Carga":
                 ),
             )
 
+
             observacoes = st.text_area(
                 "Observações / Rota",
                 placeholder=(
-                    "Ex.: Entregas em lojas "
-                    "diferentes"
+                    "Ex.: Entregas em "
+                    "lojas diferentes"
                 ),
             )
+
 
         with c2:
 
@@ -2570,26 +3219,41 @@ elif menu == "➕ Nova Carga":
                 ajudantes_lista,
             )
 
+
             data_carga = st.date_input(
                 "Data do Carregamento",
                 value=datetime.date.today(),
             )
+
 
             data_saida = st.date_input(
                 "Data de Saída",
                 value=datetime.date.today(),
             )
 
+
             data_entrega = st.date_input(
                 "Data Prevista de Entrega",
                 value=datetime.date.today(),
             )
+
+
+        st.markdown(
+            "### 📌 Posição inicial"
+        )
+
+        status_inicial = st.selectbox(
+            "Onde o cartão deve começar?",
+            STATUS,
+        )
+
 
         salvar = st.form_submit_button(
             "💾 Salvar e Agendar Carga",
             type="primary",
             use_container_width=True,
         )
+
 
         if salvar:
 
@@ -2598,6 +3262,7 @@ elif menu == "➕ Nova Carga":
                     id_planejamento
                 ).strip()
             )
+
 
             if (
                 not id_planejamento
@@ -2611,13 +3276,15 @@ elif menu == "➕ Nova Carga":
                     "e Região de Destino."
                 )
 
+
             elif data_saida < data_carga:
 
                 st.error(
                     "A Data de Saída não pode "
-                    "ser anterior à Data de "
+                    "ser anterior à Data do "
                     "Carregamento."
                 )
+
 
             elif data_entrega < data_saida:
 
@@ -2627,42 +3294,60 @@ elif menu == "➕ Nova Carga":
                     "Data de Saída."
                 )
 
+
             elif any(
                 str(
                     c.get("id")
                 )
                 == id_planejamento
+
                 for c in cargas_lista
             ):
 
                 st.error(
-                    "Já existe uma carga com "
-                    f"o ID/Planejamento "
+                    "Já existe uma carga "
+                    f"com o ID/Planejamento "
                     f"'{id_planejamento}'."
                 )
+
 
             else:
 
                 nova_carga = {
-                    "id": id_planejamento,
-                    "motorista": motorista,
-                    "destino": destino,
-                    "observacoes": observacoes,
-                    "ajudantes": ajudantes,
-                    "data_carga": str(
-                        data_carga
-                    ),
-                    "data_saida": str(
-                        data_saida
-                    ),
-                    "data_entrega": str(
-                        data_entrega
-                    ),
+
+                    "id":
+                        id_planejamento,
+
+                    "motorista":
+                        motorista,
+
+                    "destino":
+                        destino,
+
+                    "observacoes":
+                        observacoes,
+
+                    "ajudantes":
+                        ajudantes,
+
+                    "data_carga":
+                        str(data_carga),
+
+                    "data_saida":
+                        str(data_saida),
+
+                    "data_entrega":
+                        str(data_entrega),
                 }
 
-                # --------------------------------------------
-                # STATUS NÃO É SALVO
-                # --------------------------------------------
+
+                # IMPORTANTE:
+                # status não vai para o Firebase.
+                #
+                # A posição fica somente na sessão.
+                #
+                # Assim o cartão pode percorrer
+                # as colunas sem salvar status.
 
                 if salvar_documento(
                     "cargas",
@@ -2676,10 +3361,18 @@ elif menu == "➕ Nova Carga":
                         nova_carga
                     )
 
+
+                    st.session_state[
+                        "status_cartoes"
+                    ][
+                        id_planejamento
+                    ] = status_inicial
+
+
                     st.success(
                         f"✅ Planejamento "
                         f"#{id_planejamento} "
-                        f"cadastrado!"
+                        "cadastrado!"
                     )
 
                     st.rerun()
@@ -2696,7 +3389,11 @@ elif menu == "👥 Cadastros (Equipe)":
         "e Ajudantes"
     )
 
-    c1, c2 = st.columns(2)
+
+    c1, c2 = st.columns(
+        2
+    )
+
 
     # ========================================================
     # MOTORISTAS
@@ -2708,6 +3405,7 @@ elif menu == "👥 Cadastros (Equipe)":
             "### 🚚 Motoristas"
         )
 
+
         with st.form(
             "form_cad_mot",
             clear_on_submit=True,
@@ -2717,14 +3415,17 @@ elif menu == "👥 Cadastros (Equipe)":
                 "Adicionar novo motorista"
             )
 
+
             enviar = st.form_submit_button(
                 "Cadastrar Motorista",
                 use_container_width=True,
             )
 
+
             if enviar:
 
                 nome = nome.strip()
+
 
                 if not nome:
 
@@ -2732,6 +3433,7 @@ elif menu == "👥 Cadastros (Equipe)":
                         "Informe o nome "
                         "do motorista."
                     )
+
 
                 elif any(
                     str(
@@ -2741,27 +3443,34 @@ elif menu == "👥 Cadastros (Equipe)":
                         )
                     ).lower()
                     == nome.lower()
+
                     for m in st.session_state[
                         "motoristas"
                     ]
                 ):
 
                     st.error(
-                        "Este motorista já "
-                        "está cadastrado."
+                        "Este motorista "
+                        "já está cadastrado."
                     )
+
 
                 else:
 
                     doc_id = (
-                        f"mot_"
-                        f"{int(datetime.datetime.now().timestamp() * 1000)}"
+                        "mot_"
+                        f"{int("
+                        "datetime.datetime.now()"
+                        ".timestamp() * 1000"
+                        ")}"
                     )
+
 
                     dados = {
                         "id": doc_id,
                         "nome": nome,
                     }
+
 
                     if salvar_documento(
                         "motoristas",
@@ -2782,7 +3491,9 @@ elif menu == "👥 Cadastros (Equipe)":
 
                         st.rerun()
 
+
         st.markdown("---")
+
 
         if not st.session_state[
             "motoristas"
@@ -2791,6 +3502,7 @@ elif menu == "👥 Cadastros (Equipe)":
             st.info(
                 "Nenhum motorista cadastrado."
             )
+
 
         for obj in st.session_state[
             "motoristas"
@@ -2806,22 +3518,29 @@ elif menu == "👥 Cadastros (Equipe)":
                 nome,
             )
 
+
             a, b = st.columns(
                 [4, 2]
             )
 
+
             a.write(
                 f"🚚 {nome}"
             )
+
 
             if b.button(
                 "Excluir",
                 key=f"del_mot_{doc_id}",
                 use_container_width=True,
             ):
+
                 st.session_state[
                     f"conf_mot_{doc_id}"
                 ] = True
+
+                st.rerun()
+
 
             if st.session_state.get(
                 f"conf_mot_{doc_id}",
@@ -2833,16 +3552,17 @@ elif menu == "👥 Cadastros (Equipe)":
                     f"'{nome}'?"
                 )
 
-                y, n = st.columns(2)
+
+                y, n = st.columns(
+                    2
+                )
+
 
                 with y:
 
                     if st.button(
                         "Confirmar",
-                        key=(
-                            f"yes_mot_"
-                            f"{doc_id}"
-                        ),
+                        key=f"yes_mot_{doc_id}",
                         type="primary",
                         use_container_width=True,
                     ):
@@ -2860,6 +3580,7 @@ elif menu == "👥 Cadastros (Equipe)":
                                 in st.session_state[
                                     "motoristas"
                                 ]
+
                                 if x.get(
                                     "id"
                                 )
@@ -2868,14 +3589,12 @@ elif menu == "👥 Cadastros (Equipe)":
 
                             st.rerun()
 
+
                 with n:
 
                     if st.button(
                         "Cancelar",
-                        key=(
-                            f"no_mot_"
-                            f"{doc_id}"
-                        ),
+                        key=f"no_mot_{doc_id}",
                         use_container_width=True,
                     ):
 
@@ -2884,6 +3603,7 @@ elif menu == "👥 Cadastros (Equipe)":
                         ] = False
 
                         st.rerun()
+
 
     # ========================================================
     # AJUDANTES
@@ -2895,6 +3615,7 @@ elif menu == "👥 Cadastros (Equipe)":
             "### 👥 Ajudantes"
         )
 
+
         with st.form(
             "form_cad_aju",
             clear_on_submit=True,
@@ -2904,14 +3625,17 @@ elif menu == "👥 Cadastros (Equipe)":
                 "Adicionar novo ajudante"
             )
 
+
             enviar = st.form_submit_button(
                 "Cadastrar Ajudante",
                 use_container_width=True,
             )
 
+
             if enviar:
 
                 nome = nome.strip()
+
 
                 if not nome:
 
@@ -2919,6 +3643,7 @@ elif menu == "👥 Cadastros (Equipe)":
                         "Informe o nome "
                         "do ajudante."
                     )
+
 
                 elif any(
                     str(
@@ -2928,27 +3653,34 @@ elif menu == "👥 Cadastros (Equipe)":
                         )
                     ).lower()
                     == nome.lower()
+
                     for a in st.session_state[
                         "ajudantes"
                     ]
                 ):
 
                     st.error(
-                        "Este ajudante já "
-                        "está cadastrado."
+                        "Este ajudante "
+                        "já está cadastrado."
                     )
+
 
                 else:
 
                     doc_id = (
-                        f"aju_"
-                        f"{int(datetime.datetime.now().timestamp() * 1000)}"
+                        "aju_"
+                        f"{int("
+                        "datetime.datetime.now()"
+                        ".timestamp() * 1000"
+                        ")}"
                     )
+
 
                     dados = {
                         "id": doc_id,
                         "nome": nome,
                     }
+
 
                     if salvar_documento(
                         "ajudantes",
@@ -2969,7 +3701,9 @@ elif menu == "👥 Cadastros (Equipe)":
 
                         st.rerun()
 
+
         st.markdown("---")
+
 
         if not st.session_state[
             "ajudantes"
@@ -2978,6 +3712,7 @@ elif menu == "👥 Cadastros (Equipe)":
             st.info(
                 "Nenhum ajudante cadastrado."
             )
+
 
         for obj in st.session_state[
             "ajudantes"
@@ -2993,22 +3728,29 @@ elif menu == "👥 Cadastros (Equipe)":
                 nome,
             )
 
+
             a, b = st.columns(
                 [4, 2]
             )
 
+
             a.write(
                 f"👤 {nome}"
             )
+
 
             if b.button(
                 "Excluir",
                 key=f"del_aju_{doc_id}",
                 use_container_width=True,
             ):
+
                 st.session_state[
                     f"conf_aju_{doc_id}"
                 ] = True
+
+                st.rerun()
+
 
             if st.session_state.get(
                 f"conf_aju_{doc_id}",
@@ -3020,16 +3762,17 @@ elif menu == "👥 Cadastros (Equipe)":
                     f"'{nome}'?"
                 )
 
-                y, n = st.columns(2)
+
+                y, n = st.columns(
+                    2
+                )
+
 
                 with y:
 
                     if st.button(
                         "Confirmar",
-                        key=(
-                            f"yes_aju_"
-                            f"{doc_id}"
-                        ),
+                        key=f"yes_aju_{doc_id}",
                         type="primary",
                         use_container_width=True,
                     ):
@@ -3047,6 +3790,7 @@ elif menu == "👥 Cadastros (Equipe)":
                                 in st.session_state[
                                     "ajudantes"
                                 ]
+
                                 if x.get(
                                     "id"
                                 )
@@ -3055,14 +3799,12 @@ elif menu == "👥 Cadastros (Equipe)":
 
                             st.rerun()
 
+
                 with n:
 
                     if st.button(
                         "Cancelar",
-                        key=(
-                            f"no_aju_"
-                            f"{doc_id}"
-                        ),
+                        key=f"no_aju_{doc_id}",
                         use_container_width=True,
                     ):
 
@@ -3083,6 +3825,7 @@ elif menu == "📈 Relatórios":
         "📈 Relatórios e Exportação de Dados"
     )
 
+
     if not cargas_lista:
 
         st.info(
@@ -3090,79 +3833,74 @@ elif menu == "📈 Relatórios":
             "para gerar relatórios."
         )
 
+
     else:
 
-        f1, f2, f3 = st.columns(3)
+        f1, f2, f3 = st.columns(
+            3
+        )
+
 
         with f1:
 
             filtro_motorista = (
                 st.selectbox(
                     "Motorista",
-                    [
-                        "Todos"
-                    ]
+                    ["Todos"]
                     + motoristas_lista,
                     key="rel_motorista",
                 )
             )
+
 
         with f2:
 
             filtro_status = (
                 st.selectbox(
                     "Status",
-                    [
-                        "Todos"
-                    ]
+                    ["Todos"]
                     + STATUS,
                     key="rel_status",
                 )
             )
 
+
         with f3:
 
-            filtro_busca = (
-                st.text_input(
-                    "Pesquisar ID, destino "
-                    "ou observação",
-                    key="rel_busca",
-                )
+            filtro_busca = st.text_input(
+                "Pesquisar ID, destino ou observação",
+                key="rel_busca",
             )
+
 
         cargas_relatorio = list(
             cargas_lista
         )
 
-        # ----------------------------------------------------
-        # MOTORISTA
-        # ----------------------------------------------------
 
         if filtro_motorista != "Todos":
 
             cargas_relatorio = [
                 c
                 for c in cargas_relatorio
-                if c.get("motorista")
+                if c.get(
+                    "motorista"
+                )
                 == filtro_motorista
             ]
 
-        # ----------------------------------------------------
-        # STATUS CALCULADO
-        # ----------------------------------------------------
 
         if filtro_status != "Todos":
 
             cargas_relatorio = [
                 c
                 for c in cargas_relatorio
-                if calcular_status(c)
+                if obter_status_cartao(
+                    c
+                )
                 == filtro_status
             ]
 
-        # ----------------------------------------------------
-        # PESQUISA
-        # ----------------------------------------------------
 
         if filtro_busca.strip():
 
@@ -3172,59 +3910,72 @@ elif menu == "📈 Relatórios":
                 .strip()
             )
 
+
             cargas_relatorio = [
                 c
                 for c in cargas_relatorio
-                if termo in (
-                    " ".join(
-                        str(
-                            c.get(
-                                k,
-                                "",
-                            )
-                        )
-                        for k in (
-                            "id",
-                            "motorista",
-                            "destino",
-                            "observacoes",
+
+                if termo
+                in " ".join(
+                    str(
+                        c.get(
+                            k,
+                            "",
                         )
                     )
-                    + " "
-                    + calcular_status(c)
+
+                    for k in (
+                        "id",
+                        "motorista",
+                        "destino",
+                        "observacoes",
+                    )
                 ).lower()
             ]
 
-        # ----------------------------------------------------
-        # MÉTRICAS
-        # ----------------------------------------------------
 
         total_r = len(
             cargas_relatorio
         )
 
+
         entregues = sum(
-            calcular_status(c)
+            obter_status_cartao(c)
             == "Entregue / Concluído"
+
             for c in cargas_relatorio
         )
 
+
         transito = sum(
-            calcular_status(c)
+            obter_status_cartao(c)
             == "Em Trânsito / Viagem Iniciada"
+
             for c in cargas_relatorio
         )
+
 
         atrasadas_r = sum(
             carga_atrasada(c)
             for c in cargas_relatorio
         )
 
+
         patio = sum(
-            calcular_status(c)
+            obter_status_cartao(c)
             == "Carregado / No Pátio"
+
             for c in cargas_relatorio
         )
+
+
+        aguardando = sum(
+            obter_status_cartao(c)
+            == "Aguardando Carregamento"
+
+            for c in cargas_relatorio
+        )
+
 
         conclusao = (
             entregues
@@ -3234,35 +3985,46 @@ elif menu == "📈 Relatórios":
             else 0
         )
 
+
+        # ----------------------------------------------------
+        # MÉTRICAS
+        # ----------------------------------------------------
+
         r1, r2, r3, r4, r5 = st.columns(
             5
         )
 
+
         dados_metricas = [
+
             (
                 "CARGAS",
                 total_r,
                 "Resultado do filtro",
                 "blue",
             ),
+
             (
                 "ENTREGUES",
                 entregues,
                 "Concluídas",
                 "green",
             ),
+
             (
                 "PÁTIO",
                 patio,
                 "Carregadas / no pátio",
                 "yellow",
             ),
+
             (
                 "EM TRÂNSITO",
                 transito,
                 "Viagens em andamento",
                 "purple",
             ),
+
             (
                 "CONCLUSÃO",
                 f"{conclusao:.1f}%",
@@ -3270,6 +4032,7 @@ elif menu == "📈 Relatórios":
                 "blue",
             ),
         ]
+
 
         for col, (
             titulo,
@@ -3291,17 +4054,30 @@ elif menu == "📈 Relatórios":
 
                 st.markdown(
                     f"""
-                    <div class="metric-card metric-{cor}">
+                    <div
+                        class=
+                        "metric-card
+                         metric-{cor}"
+                    >
 
-                        <div class="metric-title">
+                        <div
+                            class=
+                            "metric-title"
+                        >
                             {titulo}
                         </div>
 
-                        <div class="metric-value">
+                        <div
+                            class=
+                            "metric-value"
+                        >
                             {valor}
                         </div>
 
-                        <div class="metric-subtitle">
+                        <div
+                            class=
+                            "metric-subtitle"
+                        >
                             {sub}
                         </div>
 
@@ -3310,24 +4086,27 @@ elif menu == "📈 Relatórios":
                     unsafe_allow_html=True,
                 )
 
+
         if atrasadas_r:
 
             st.markdown(
                 f"""
-                <div class="alert-box alert-red">
-
+                <div
+                    class=
+                    "alert-box alert-red"
+                >
                     🔴 O filtro atual possui
                     {atrasadas_r}
                     carga(s) atrasada(s).
-
                 </div>
                 """,
                 unsafe_allow_html=True,
             )
 
-        # ====================================================
+
+        # ----------------------------------------------------
         # VISÃO GERENCIAL
-        # ====================================================
+        # ----------------------------------------------------
 
         st.markdown(
             '<div class="section-title">'
@@ -3336,25 +4115,31 @@ elif menu == "📈 Relatórios":
             unsafe_allow_html=True,
         )
 
+
         status_contagem = {
             s: 0
             for s in STATUS
         }
 
+
         motorista_contagem = {}
 
         evolucao = {}
 
+
         for c in cargas_relatorio:
 
-            status = calcular_status(
+            status = obter_status_cartao(
                 c
             )
 
+
             if status in status_contagem:
+
                 status_contagem[
                     status
                 ] += 1
+
 
             motorista = (
                 c.get(
@@ -3362,6 +4147,7 @@ elif menu == "📈 Relatórios":
                 )
                 or "Sem motorista"
             )
+
 
             motorista_contagem[
                 motorista
@@ -3373,10 +4159,16 @@ elif menu == "📈 Relatórios":
                 + 1
             )
 
+
             data = converter_para_data(
-                c.get("data_saida")
-                or c.get("data_carga")
+                c.get(
+                    "data_saida"
+                )
+                or c.get(
+                    "data_carga"
+                )
             )
+
 
             if data:
 
@@ -3388,6 +4180,7 @@ elif menu == "📈 Relatórios":
                     + 1
                 )
 
+
         st.markdown(
             grafico_status_html(
                 status_contagem,
@@ -3395,6 +4188,7 @@ elif menu == "📈 Relatórios":
             ),
             unsafe_allow_html=True,
         )
+
 
         st.markdown(
             grafico_barras_html(
@@ -3405,9 +4199,6 @@ elif menu == "📈 Relatórios":
             unsafe_allow_html=True,
         )
 
-        # ====================================================
-        # EVOLUÇÃO
-        # ====================================================
 
         if evolucao:
 
@@ -3422,14 +4213,19 @@ elif menu == "📈 Relatórios":
                 unsafe_allow_html=True,
             )
 
+
             df_evo = pd.DataFrame(
                 [
                     {
-                        "Data": d.strftime(
-                            "%d/%m/%Y"
-                        ),
-                        "Cargas": v,
+                        "Data":
+                            d.strftime(
+                                "%d/%m/%Y"
+                            ),
+
+                        "Cargas":
+                            v,
                     }
+
                     for d, v
                     in sorted(
                         evolucao.items()
@@ -3437,28 +4233,33 @@ elif menu == "📈 Relatórios":
                 ]
             )
 
+
             st.dataframe(
                 df_evo,
                 use_container_width=True,
                 hide_index=True,
             )
 
+
             st.markdown(
                 "</div>",
                 unsafe_allow_html=True,
             )
 
-        # ====================================================
+
+        # ----------------------------------------------------
         # DETALHAMENTO
-        # ====================================================
+        # ----------------------------------------------------
 
         st.markdown(
             "### 📋 Detalhamento das Cargas"
         )
 
+
         df = preparar_dataframe(
             cargas_relatorio
         )
+
 
         if df.empty:
 
@@ -3466,6 +4267,7 @@ elif menu == "📈 Relatórios":
                 "Nenhuma carga encontrada "
                 "com os filtros atuais."
             )
+
 
         else:
 
@@ -3475,43 +4277,59 @@ elif menu == "📈 Relatórios":
                 hide_index=True,
             )
 
-            # =================================================
+
+            # ------------------------------------------------
             # EXPORTAÇÃO
-            # =================================================
+            # ------------------------------------------------
 
             st.markdown(
                 "### 📥 Exportar Arquivos"
             )
 
-            e1, e2 = st.columns(2)
+
+            e1, e2 = st.columns(
+                2
+            )
+
 
             with e1:
 
                 st.download_button(
                     "📥 Baixar Excel (.xlsx)",
+
                     data=(
                         gerar_excel_profissional(
                             df
                         )
                     ),
+
                     file_name=(
                         "relatorio_de_cargas.xlsx"
                     ),
+
                     mime=(
                         "application/vnd.openxmlformats-"
                         "officedocument.spreadsheetml.sheet"
                     ),
+
                     use_container_width=True,
                 )
+
 
             with e2:
 
                 st.download_button(
                     "📄 Baixar PDF",
-                    data=gerar_pdf(df),
+
+                    data=(
+                        gerar_pdf(df)
+                    ),
+
                     file_name=(
                         "relatorio_de_cargas.pdf"
                     ),
+
                     mime="application/pdf",
+
                     use_container_width=True,
                 )
