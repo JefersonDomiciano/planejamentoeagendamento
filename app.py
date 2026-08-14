@@ -7,6 +7,7 @@ import pandas as pd
 import streamlit as st
 from fpdf import FPDF
 import openpyxl
+import plotly.graph_objects as go
 from openpyxl.styles import Font, Alignment, PatternFill, Border, Side
 from openpyxl.utils import get_column_letter
 
@@ -32,223 +33,74 @@ st.markdown(
     <style>
         #MainMenu {visibility: hidden;}
         footer {visibility: hidden;}
+        .block-container {padding-top: 1.2rem; padding-bottom: 2rem; max-width: 1500px;}
 
-        .block-container {
-            padding-top: 1rem;
-            padding-bottom: 2rem;
-            max-width: 100%;
-        }
+        .app-kicker {color:#8ea0b8; font-size:11px; font-weight:700; text-transform:uppercase; letter-spacing:1.4px; margin-bottom:2px;}
+        .app-title {color:#f8fafc; font-size:28px; font-weight:800; letter-spacing:-.5px; margin-bottom:0;}
+        .app-subtitle {color:#8796aa; font-size:13px; margin-top:3px;}
 
-        /* =========================
-           KANBAN
-        ========================== */
+        .kanban-header {text-align:left; background:linear-gradient(135deg,#182235 0%,#111827 100%); color:#f8fafc!important; padding:13px 14px; border-radius:12px; font-weight:750; font-size:13px; border:1px solid #273449; margin-bottom:10px; box-shadow:0 8px 24px rgba(0,0,0,.14);}
+        .kanban-count {color:#71819a!important; font-size:11px; font-weight:600;}
+        .kanban-card {background:linear-gradient(145deg,#172131 0%,#111827 100%); border:1px solid #263449; border-radius:14px; padding:15px; margin:0 0 10px 0; box-shadow:0 10px 26px rgba(0,0,0,.16);}
+        .card-label {color:#73849a; font-size:10px; font-weight:700; text-transform:uppercase; letter-spacing:.7px;}
+        .card-id {color:#60a5fa; font-size:12px; font-weight:800;}
+        .card-driver {color:#f8fafc; font-size:15px; font-weight:800; margin:7px 0 8px;}
+        .card-destination {color:#d6deea; font-size:13px; font-weight:600;}
+        .card-meta {color:#a5b3c5; font-size:11px; line-height:1.7;}
+        .card-divider {height:1px; background:#243145; margin:10px 0;}
 
-        .kanban-header {
-            text-align: center;
-            background: linear-gradient(135deg, #21262d 0%, #161b22 100%);
-            color: #ffffff !important;
-            padding: 10px;
-            border-radius: 8px;
-            font-weight: 600;
-            font-size: 14px;
-            border: 1px solid #30363d;
-            letter-spacing: 0.5px;
-            margin-bottom: 10px;
-        }
+        .metric-card {position:relative; overflow:hidden; background:linear-gradient(145deg,#172131 0%,#111827 100%); border:1px solid #263449; border-radius:14px; padding:17px 18px; min-height:116px; box-shadow:0 10px 28px rgba(0,0,0,.14);}
+        .metric-card::after {content:""; position:absolute; right:-28px; top:-35px; width:90px; height:90px; border-radius:50%; background:rgba(255,255,255,.025);}
+        .metric-title {color:#8998ac; font-size:10px; font-weight:800; letter-spacing:.8px;}
+        .metric-value {color:#f8fafc; font-size:30px; font-weight:850; line-height:1.1; margin-top:7px;}
+        .metric-subtitle {color:#718198; font-size:10px; margin-top:6px;}
+        .metric-blue{border-left:3px solid #3b82f6;} .metric-green{border-left:3px solid #22c55e;} .metric-yellow{border-left:3px solid #f59e0b;} .metric-purple{border-left:3px solid #a855f7;} .metric-red{border-left:3px solid #ef4444;}
 
-        div[data-testid="stVerticalBlock"] div[data-testid="stContainer"] {
-            background-color: #161b22 !important;
-            border: 1px solid #30363d !important;
-            border-radius: 8px !important;
-            padding: 12px 14px !important;
-            margin-bottom: 10px !important;
-            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.2);
-        }
+        .alert-box {padding:12px 15px; border-radius:11px; margin-bottom:10px; font-size:12px; font-weight:600;}
+        .alert-red {background:rgba(239,68,68,.08); border:1px solid rgba(239,68,68,.28); color:#fca5a5;}
+        .alert-yellow {background:rgba(245,158,11,.08); border:1px solid rgba(245,158,11,.28); color:#fcd34d;}
+        .alert-green {background:rgba(34,197,94,.08); border:1px solid rgba(34,197,94,.25); color:#86efac;}
 
-        div[data-testid="stVerticalBlock"] div[data-testid="stContainer"] p,
-        div[data-testid="stVerticalBlock"] div[data-testid="stContainer"] span {
-            color: #c9d1d9 !important;
-            font-size: 13px !important;
-            margin-bottom: 2px !important;
-        }
+        .badge {display:inline-block; padding:4px 8px; border-radius:999px; font-size:9px; font-weight:800; letter-spacing:.25px; margin-right:4px; margin-bottom:5px;}
+        .badge-red {background:rgba(239,68,68,.12); color:#fca5a5; border:1px solid rgba(239,68,68,.24);}
+        .badge-yellow {background:rgba(245,158,11,.12); color:#fcd34d; border:1px solid rgba(245,158,11,.24);}
+        .badge-green {background:rgba(34,197,94,.12); color:#86efac; border:1px solid rgba(34,197,94,.22);}
+        .badge-blue {background:rgba(59,130,246,.12); color:#93c5fd; border:1px solid rgba(59,130,246,.22);}
 
-        .stSelectbox label,
-        .stDateInput label,
-        .stTextInput label,
-        .stMultiSelect label {
-            font-size: 12px !important;
-            color: #8b949e !important;
-        }
+        .section-title {color:#f1f5f9; font-size:18px; font-weight:800; margin:4px 0 14px;}
+        .stSelectbox label,.stDateInput label,.stTextInput label,.stMultiSelect label,.stTextArea label {font-size:11px!important; color:#8ea0b8!important; font-weight:650!important;}
+        div[data-testid="stDataFrame"] {border:1px solid #263449; border-radius:12px; overflow:hidden;}
 
-        /* =========================
-           CARDS DE INDICADORES
-        ========================== */
-
-        .metric-card {
-            background: linear-gradient(135deg, #161b22 0%, #21262d 100%);
-            border: 1px solid #30363d;
-            border-radius: 10px;
-            padding: 14px;
-            min-height: 105px;
-            box-shadow: 0 4px 8px rgba(0,0,0,0.18);
-        }
-
-        .metric-title {
-            color: #8b949e;
-            font-size: 12px;
-            font-weight: 600;
-            margin-bottom: 5px;
-        }
-
-        .metric-value {
-            color: #ffffff;
-            font-size: 28px;
-            font-weight: 700;
-        }
-
-        .metric-subtitle {
-            color: #8b949e;
-            font-size: 11px;
-            margin-top: 3px;
-        }
-
-        .metric-blue {
-            border-left: 4px solid #58a6ff;
-        }
-
-        .metric-green {
-            border-left: 4px solid #3fb950;
-        }
-
-        .metric-yellow {
-            border-left: 4px solid #d29922;
-        }
-
-        .metric-purple {
-            border-left: 4px solid #bc8cff;
-        }
-
-        .metric-red {
-            border-left: 4px solid #f85149;
-        }
-
-        /* =========================
-           ALERTAS
-        ========================== */
-
-        .alert-box {
-            padding: 12px 15px;
-            border-radius: 8px;
-            margin-bottom: 10px;
-            font-size: 13px;
-            font-weight: 500;
-        }
-
-        .alert-red {
-            background: rgba(248, 81, 73, 0.12);
-            border: 1px solid #f85149;
-            color: #ff7b72;
-        }
-
-        .alert-yellow {
-            background: rgba(210, 153, 34, 0.12);
-            border: 1px solid #d29922;
-            color: #e3b341;
-        }
-
-        .alert-green {
-            background: rgba(63, 185, 80, 0.12);
-            border: 1px solid #3fb950;
-            color: #56d364;
-        }
-
-        /* =========================
-           BADGES
-        ========================== */
-
-        .badge {
-            display: inline-block;
-            padding: 3px 8px;
-            border-radius: 20px;
-            font-size: 10px;
-            font-weight: 700;
-            margin-right: 4px;
-            margin-bottom: 4px;
-        }
-
-        .badge-red {
-            background: rgba(248, 81, 73, 0.18);
-            color: #ff7b72;
-            border: 1px solid rgba(248, 81, 73, 0.4);
-        }
-
-        .badge-yellow {
-            background: rgba(210, 153, 34, 0.18);
-            color: #e3b341;
-            border: 1px solid rgba(210, 153, 34, 0.4);
-        }
-
-        .badge-green {
-            background: rgba(63, 185, 80, 0.18);
-            color: #56d364;
-            border: 1px solid rgba(63, 185, 80, 0.4);
-        }
-
-        .badge-blue {
-            background: rgba(88, 166, 255, 0.18);
-            color: #58a6ff;
-            border: 1px solid rgba(88, 166, 255, 0.4);
-        }
-
-        /* =========================
-           MOBILE
-        ========================== */
-
-        @media (max-width: 768px) {
-
-            .block-container {
-                padding-left: 0.5rem;
-                padding-right: 0.5rem;
-                padding-top: 0.5rem;
-            }
-
-            h1 {
-                font-size: 22px !important;
-            }
-
-            h2 {
-                font-size: 20px !important;
-            }
-
-            h3 {
-                font-size: 17px !important;
-            }
-
-            .metric-card {
-                min-height: 90px;
-                padding: 10px;
-            }
-
-            .metric-value {
-                font-size: 23px;
-            }
-
-            .kanban-header {
-                font-size: 12px;
-                padding: 8px 5px;
-            }
+        @media (max-width:768px) {
+            .block-container{padding-left:.65rem;padding-right:.65rem;padding-top:.6rem;}
+            .app-title{font-size:22px;} .metric-card{min-height:96px;padding:13px;} .metric-value{font-size:24px;} .kanban-header{font-size:11px;padding:10px;}
         }
     </style>
     """,
-    unsafe_allow_html=True,
+    unsafe_allow_html=True
 )
+
+
+def render_html(html):
+    """Renderiza HTML diretamente quando a versão do Streamlit oferece st.html."""
+    if hasattr(st, "html"):
+        st.html(html)
+    else:
+        st.markdown(html, unsafe_allow_html=True)
 
 
 # ============================================================
 # TÍTULO
 # ============================================================
 
-st.title("🚚 Painel de Controle de Cargas e Agendamentos")
+st.markdown(
+    """
+    <div class="app-kicker">LOGÍSTICA INTELIGENTE</div>
+    <div class="app-title">🚚 Gestão de Cargas</div>
+    <div class="app-subtitle">Torre de controle operacional e acompanhamento de planejamentos</div>
+    """,
+    unsafe_allow_html=True
+)
 
 
 # ============================================================
@@ -1452,14 +1304,8 @@ if menu == "📋 Painel (Kanban)":
             st.markdown(
                 f"""
                 <div class='kanban-header'>
-                    {status}
-                    <br>
-                    <span style="
-                        font-size:11px;
-                        color:#8b949e;
-                    ">
-                        {quantidade_status} carga(s)
-                    </span>
+                    <div>{status}</div>
+                    <div class="kanban-count">{quantidade_status} carga(s)</div>
                 </div>
                 """,
                 unsafe_allow_html=True
@@ -1609,135 +1455,27 @@ if menu == "📋 Painel (Kanban)":
                         ajudantes_html = ""
 
                         if ajudantes_texto.strip():
-
-                            ajudantes_html = (
-                                f"""
-                                <br>
-                                <span style="
-                                    font-size:11px;
-                                    color:#8b949e;
-                                ">
-                                    👥 Ajudantes:
-                                </span>
-                                <span style="
-                                    font-size:11px;
-                                    color:#c9d1d9;
-                                ">
-                                    {ajudantes_texto}
-                                </span>
-                                """
-                            )
+                            ajudantes_html = f'<div class="card-meta">👥 Ajudantes: <strong>{ajudantes_texto}</strong></div>'
 
 
                         observacoes_html = ""
 
                         if observacoes:
-
-                            observacoes_html = (
-                                f"""
-                                <br>
-                                <span style="
-                                    font-size:11px;
-                                    color:#8b949e;
-                                ">
-                                    📝 Obs.:
-                                </span>
-                                <span style="
-                                    font-size:11px;
-                                    color:#c9d1d9;
-                                ">
-                                    {observacoes}
-                                </span>
-                                """
-                            )
-
-
-                        st.markdown(
+                            observacoes_html = f'<div class="card-meta">📝 Obs.: <strong>{observacoes}</strong></div>'
+                        render_html(
                             f"""
-                            <div style="
-                                border-left:4px solid {cor_borda};
-                                padding-left:8px;
-                                margin-bottom:2px;
-                            ">
-
-                                <div style="
-                                    margin-bottom:5px;
-                                ">
-                                    {badges}
-                                </div>
-
-                                <b style="
-                                    font-size:13px;
-                                    color:#58a6ff;
-                                ">
-                                    📌 ID / Planejamento:
-                                    {carga_id}
-                                </b>
-
-                                <br>
-
-                                <b style="
-                                    font-size:14px;
-                                    color:#ffffff;
-                                ">
-                                    🚚 {motorista_atual}
-                                </b>
-
-                                <br>
-
-                                <span style="
-                                    font-size:11px;
-                                    color:#8b949e;
-                                ">
-                                    Destino:
-                                </span>
-
-                                <span style="
-                                    color:#c9d1d9;
-                                    font-weight:500;
-                                    font-size:13px;
-                                ">
-                                    {carga.get('destino', '')}
-                                </span>
-
-                                <br>
-
-                                <span style="
-                                    font-size:11px;
-                                    color:#8b949e;
-                                ">
-                                    📅 Saída:
-                                </span>
-
-                                <span style="
-                                    font-size:11px;
-                                    color:#c9d1d9;
-                                ">
-                                    {saida_br}
-                                </span>
-
-                                <span style="
-                                    font-size:11px;
-                                    color:#8b949e;
-                                ">
-                                    &nbsp;|&nbsp;
-                                    Entrega:
-                                </span>
-
-                                <span style="
-                                    font-size:11px;
-                                    color:#c9d1d9;
-                                ">
-                                    {entrega_br}
-                                </span>
-
+                            <div class="kanban-card" style="border-left:3px solid {cor_borda};">
+                                <div>{badges}</div>
+                                <div class="card-id">📌 PLANEJAMENTO #{carga_id}</div>
+                                <div class="card-driver">🚚 {motorista_atual}</div>
+                                <div class="card-label">Destino</div>
+                                <div class="card-destination">{carga.get('destino', '')}</div>
+                                <div class="card-divider"></div>
+                                <div class="card-meta">📅 Saída: <strong>{saida_br or '—'}</strong> &nbsp; • &nbsp; Entrega: <strong>{entrega_br or '—'}</strong></div>
                                 {ajudantes_html}
-
                                 {observacoes_html}
-
                             </div>
-                            """,
-                            unsafe_allow_html=True
+                            """
                         )
 
 
@@ -2884,105 +2622,105 @@ elif menu == "📈 Relatórios":
 
 
         # ====================================================
-        # GRÁFICOS
+        # GRÁFICOS PROFISSIONAIS
         # ====================================================
 
-        st.markdown(
-            "### 📊 Visão Gerencial"
-        )
+        st.markdown('<div class="section-title">📊 Visão Gerencial</div>', unsafe_allow_html=True)
 
+        cores_status = {
+            "Aguardando Carregamento": "#3b82f6",
+            "Carregado / No Pátio": "#22c55e",
+            "Em Trânsito / Viagem Iniciada": "#f59e0b",
+            "Entregue / Concluído": "#a855f7",
+            "Sem Status": "#64748b",
+        }
+        status_ordem = [
+            "Aguardando Carregamento",
+            "Carregado / No Pátio",
+            "Em Trânsito / Viagem Iniciada",
+            "Entregue / Concluído",
+        ]
+
+        status_contagem = {status: 0 for status in status_ordem}
+        for c in cargas_relatorio:
+            status = c.get("status", "Sem Status")
+            status_contagem[status] = status_contagem.get(status, 0) + 1
+
+        motorista_contagem = {}
+        for c in cargas_relatorio:
+            motorista = c.get("motorista", "Sem motorista")
+            motorista_contagem[motorista] = motorista_contagem.get(motorista, 0) + 1
+
+        evolucao_contagem = {}
+        for c in cargas_relatorio:
+            data_obj = converter_para_data(c.get("data_saida") or c.get("data_carga"))
+            if data_obj:
+                evolucao_contagem[data_obj] = evolucao_contagem.get(data_obj, 0) + 1
 
         gc1, gc2 = st.columns(2)
 
-
         with gc1:
-
-            st.markdown(
-                "**Cargas por Status**"
-            )
-
-
-            status_contagem = {}
-
-            for c in cargas_relatorio:
-
-                status = c.get(
-                    "status",
-                    "Sem Status"
-                )
-
-                status_contagem[status] = (
-                    status_contagem.get(
-                        status,
-                        0
-                    ) + 1
-                )
-
-
-            if status_contagem:
-
-                df_status = pd.DataFrame(
-                    {
-                        "Status": list(
-                            status_contagem.keys()
-                        ),
-                        "Quantidade": list(
-                            status_contagem.values()
-                        )
-                    }
-                )
-
-                st.bar_chart(
-                    df_status.set_index(
-                        "Status"
-                    )
-                )
-
+            labels_status = [s for s in status_ordem if status_contagem.get(s, 0) > 0]
+            values_status = [status_contagem[s] for s in labels_status]
+            if labels_status:
+                fig = go.Figure(go.Pie(
+                    labels=labels_status, values=values_status, hole=0.68, sort=False,
+                    marker=dict(colors=[cores_status[s] for s in labels_status], line=dict(color="#111827", width=3)),
+                    textinfo="percent", textfont=dict(color="#f8fafc", size=12),
+                    hovertemplate="<b>%{label}</b><br>%{value} carga(s)<br>%{percent}<extra></extra>",
+                ))
+                fig.add_annotation(text=f"<b>{total_relatorio}</b><br><span style='font-size:11px'>cargas</span>", x=.5, y=.5, showarrow=False, font=dict(color="#f8fafc", size=18))
+                fig.update_layout(title=dict(text="Cargas por Status", font=dict(size=15, color="#f1f5f9"), x=.02), height=330, margin=dict(l=5,r=5,t=55,b=5), paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(0,0,0,0)", legend=dict(orientation="v", x=.99, xanchor="right", y=.5, font=dict(size=10, color="#cbd5e1")))
+                st.plotly_chart(fig, use_container_width=True, config={"displayModeBar": False})
+            else:
+                st.info("Nenhuma carga disponível para o gráfico de status.")
 
         with gc2:
-
-            st.markdown(
-                "**Cargas por Motorista**"
-            )
-
-
-            motorista_contagem = {}
-
-
-            for c in cargas_relatorio:
-
-                motorista = c.get(
-                    "motorista",
-                    "Sem motorista"
-                )
-
-                motorista_contagem[motorista] = (
-                    motorista_contagem.get(
-                        motorista,
-                        0
-                    ) + 1
-                )
-
-
             if motorista_contagem:
+                pares = sorted(motorista_contagem.items(), key=lambda x: x[1], reverse=True)
+                nomes = [p[0] for p in pares]
+                quantidades = [p[1] for p in pares]
+                fig = go.Figure(go.Bar(
+                    x=quantidades, y=nomes, orientation="h", marker=dict(color="#3b82f6", line=dict(color="#60a5fa", width=1)),
+                    text=quantidades, textposition="outside", textfont=dict(color="#e2e8f0", size=11),
+                    hovertemplate="<b>%{y}</b><br>%{x} carga(s)<extra></extra>",
+                ))
+                fig.update_layout(title=dict(text="Cargas por Motorista", font=dict(size=15, color="#f1f5f9"), x=.02), height=330, margin=dict(l=10,r=40,t=55,b=25), paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(0,0,0,0)", xaxis=dict(showgrid=True, gridcolor="rgba(148,163,184,.12)", zeroline=False, tickfont=dict(color="#718198", size=10)), yaxis=dict(showgrid=False, autorange="reversed", tickfont=dict(color="#cbd5e1", size=11)), showlegend=False)
+                st.plotly_chart(fig, use_container_width=True, config={"displayModeBar": False})
+            else:
+                st.info("Nenhum motorista disponível para o gráfico.")
 
-                df_motoristas = pd.DataFrame(
-                    {
-                        "Motorista": list(
-                            motorista_contagem.keys()
-                        ),
-                        "Quantidade": list(
-                            motorista_contagem.values()
-                        )
-                    }
-                )
+        gc3, gc4 = st.columns([1.65, 1])
 
-                st.bar_chart(
-                    df_motoristas.set_index(
-                        "Motorista"
-                    )
-                )
+        with gc3:
+            if evolucao_contagem:
+                datas = sorted(evolucao_contagem)
+                valores = [evolucao_contagem[d] for d in datas]
+                fig = go.Figure(go.Scatter(
+                    x=datas, y=valores, mode="lines+markers", line=dict(color="#60a5fa", width=3, shape="spline"),
+                    marker=dict(color="#60a5fa", size=7, line=dict(color="#dbeafe", width=2)), fill="tozeroy", fillcolor="rgba(59,130,246,.12)",
+                    hovertemplate="<b>%{x|%d/%m/%Y}</b><br>%{y} carga(s)<extra></extra>",
+                ))
+                fig.update_layout(title=dict(text="Evolução de Cargas", font=dict(size=15, color="#f1f5f9"), x=.02), height=310, margin=dict(l=10,r=15,t=55,b=25), paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(0,0,0,0)", xaxis=dict(showgrid=False, tickfont=dict(color="#718198", size=9)), yaxis=dict(showgrid=True, gridcolor="rgba(148,163,184,.12)", zeroline=False, dtick=1, tickfont=dict(color="#718198", size=9)), showlegend=False)
+                st.plotly_chart(fig, use_container_width=True, config={"displayModeBar": False})
+            else:
+                st.info("Não há datas válidas para montar a evolução.")
 
+        with gc4:
+            if motorista_contagem:
+                top = sorted(motorista_contagem.items(), key=lambda x: x[1], reverse=True)[:5]
+                nomes_top = [p[0] for p in top]
+                valores_top = [p[1] for p in top]
+                maior = max(valores_top) if valores_top else 1
+                fig = go.Figure(go.Bar(
+                    x=valores_top, y=nomes_top, orientation="h", marker=dict(color="#8b5cf6"),
+                    text=valores_top, textposition="outside", textfont=dict(color="#e2e8f0", size=11),
+                    hovertemplate="<b>%{y}</b><br>%{x} carga(s)<extra></extra>",
+                ))
+                fig.update_layout(title=dict(text="Top Motoristas", font=dict(size=15, color="#f1f5f9"), x=.02), height=310, margin=dict(l=10,r=35,t=55,b=25), paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(0,0,0,0)", xaxis=dict(range=[0,max(maior+1,2)],showgrid=False,showticklabels=False,zeroline=False), yaxis=dict(autorange="reversed",showgrid=False,tickfont=dict(color="#cbd5e1",size=10)), showlegend=False)
+                st.plotly_chart(fig, use_container_width=True, config={"displayModeBar": False})
+            else:
+                st.info("Nenhum motorista no ranking.")
 
         # ====================================================
         # TABELA
