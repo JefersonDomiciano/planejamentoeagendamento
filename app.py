@@ -57,30 +57,6 @@ st.markdown(
             font-size: 12px !important;
             color: #8b949e !important;
         }
-
-        /* Estilo Profissional para os Cards do Dashboard */
-        .kpi-card {
-            background: linear-gradient(135deg, #161b22 0%, #0d1117 100%);
-            border: 1px solid #30363d;
-            border-radius: 10px;
-            padding: 20px;
-            text-align: center;
-            box-shadow: 0 4px 12px rgba(0,0,0,0.3);
-            margin-bottom: 15px;
-        }
-        .kpi-title {
-            color: #8b949e;
-            font-size: 13px;
-            font-weight: 600;
-            text-transform: uppercase;
-            letter-spacing: 0.8px;
-            margin-bottom: 8px;
-        }
-        .kpi-value {
-            color: #ffffff;
-            font-size: 28px;
-            font-weight: 700;
-        }
     </style>
 """,
     unsafe_allow_html=True,
@@ -164,7 +140,6 @@ menu = st.radio(
         "📋 Painel (Kanban)",
         "➕ Nova Carga",
         "👥 Cadastros (Equipe)",
-        "📊 Dashboard",
         "📈 Relatórios",
     ],
     horizontal=True,
@@ -341,15 +316,15 @@ if menu == "📋 Painel (Kanban)":
                 entrega_br = formatar_data_br(carga.get('data_entrega'))
 
                 with st.container():
-                    c_info, c_btn = st.columns([5, 2])
+                    c_info, c_btn = st.columns([3.5, 2.5])
                     
                     with c_info:
                         st.markdown(f"""
-                            <div style="border-left: 4px solid {cor_motorista}; padding-left: 8px; margin-bottom: 4px;">
+                            <div style="border-left: 4px solid {cor_motorista}; padding-left: 8px; margin-bottom: 2px;">
                                 <b style="font-size: 13px; color: #58a6ff;">📌 ID: {carga_id}</b><br>
                                 <b style="font-size: 14px; color: #ffffff;">🚚 {motorista_atual}</b><br>
                                 <span style="font-size: 13px; color: #8b949e;">Destino:</span> <span style="color: #c9d1d9; font-weight: 500;">{carga.get('destino')}</span><br>
-                                <span style="font-size: 12px; color: #8b949e;">📅 Saída: {saida_br} | Entrega: {entrega_br}</span>
+                                <span style="font-size: 11px; color: #8b949e;">📅 Saída: {saida_br} | Entrega: {entrega_br}</span>
                             </div>
                         """, unsafe_allow_html=True)
                     
@@ -538,74 +513,7 @@ elif menu == "👥 Cadastros (Equipe)":
                 st.rerun()
 
 # ----------------------------------------------------
-# 4. DASHBOARD (PROFISSIONAL COM HTML/CSS)
-# ----------------------------------------------------
-elif menu == "📊 Dashboard":
-    st.subheader("📊 Dashboard Executivo de Operações")
-
-    if not cargas_lista:
-        st.info("Nenhuma carga cadastrada para exibir o dashboard.")
-    else:
-        df_db = pd.DataFrame(cargas_lista)
-        
-        total_cargas = len(df_db)
-        cargas_entregues = len(df_db[df_db["status"] == "Entregue / Concluído"]) if "status" in df_db.columns else 0
-        cargas_transito = len(df_db[df_db["status"].str.contains("Trânsito|Pátio|Aguardando", na=False)]) if "status" in df_db.columns else 0
-        taxa_conclusao = (cargas_entregues / total_cargas * 100) if total_cargas > 0 else 0
-
-        # Cards HTML personalizados
-        c1, c2, c3, c4 = st.columns(4)
-        
-        with c1:
-            st.markdown(f"""
-                <div class="kpi-card">
-                    <div class="kpi-title">📦 Total de Cargas</div>
-                    <div class="kpi-value">{total_cargas}</div>
-                </div>
-            """, unsafe_allow_html=True)
-            
-        with c2:
-            st.markdown(f"""
-                <div class="kpi-card">
-                    <div class="kpi-title">✅ Concluídas</div>
-                    <div class="kpi-value" style="color: #3fb950;">{cargas_entregues}</div>
-                </div>
-            """, unsafe_allow_html=True)
-            
-        with c3:
-            st.markdown(f"""
-                <div class="kpi-card">
-                    <div class="kpi-title">🚚 Em Andamento</div>
-                    <div class="kpi-value" style="color: #d29922;">{cargas_transito}</div>
-                </div>
-            """, unsafe_allow_html=True)
-            
-        with c4:
-            st.markdown(f"""
-                <div class="kpi-card">
-                    <div class="kpi-title">📈 Taxa de Sucesso</div>
-                    <div class="kpi-value" style="color: #58a6ff;">{taxa_conclusao:.1f}%</div>
-                </div>
-            """, unsafe_allow_html=True)
-
-        st.markdown("---")
-        
-        col_g1, col_g2 = st.columns(2)
-
-        with col_g1:
-            st.markdown("### 📊 Distribuição por Status")
-            if "status" in df_db.columns:
-                status_counts = df_db["status"].value_counts()
-                st.bar_chart(status_counts)
-
-        with col_g2:
-            st.markdown("### 🚚 Produtividade por Motorista")
-            if "motorista" in df_db.columns:
-                mot_counts = df_db["motorista"].value_counts()
-                st.bar_chart(mot_counts)
-
-# ----------------------------------------------------
-# 5. RELATÓRIOS (EXPORTAÇÃO E TABELAS)
+# 4. RELATÓRIOS (EXPORTAÇÃO E TABELAS)
 # ----------------------------------------------------
 elif menu == "📈 Relatórios":
     st.subheader("📈 Relatórios e Exportação de Dados")
