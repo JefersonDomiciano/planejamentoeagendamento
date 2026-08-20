@@ -1,5 +1,5 @@
-streamlit>=1.37,<2.0
-pandas>=2.0,<3.0
-requests>=2.31,<3.0
-fpdf2>=2.7,<3.0
-openpyxl>=3.1,<4.0
+streamlit
+requests
+pandas
+openpyxl
+fpdf
