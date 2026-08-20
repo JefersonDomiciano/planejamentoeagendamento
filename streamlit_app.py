@@ -698,7 +698,7 @@ def gerar_pdf(df):
         pdf.cell(larguras[7], 6, str(row.get("status", ""))[:18], 1, 0, "C")
         pdf.ln()
 
-    return bytes(pdf.output(dest="S"))
+    return pdf.output(dest="S").encode("latin-1")
 
 
 # ============================================================
