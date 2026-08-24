@@ -6,7 +6,6 @@ from zoneinfo import ZoneInfo
 import requests
 import pandas as pd
 import streamlit as st
-import streamlit.components.v1 as components
 from fpdf import FPDF
 import openpyxl
 from openpyxl.styles import Font, Alignment, PatternFill, Border, Side
@@ -377,108 +376,30 @@ footer {visibility: hidden;}
             .block-container{padding-left:.65rem;padding-right:.65rem;padding-top:.6rem;}
             .app-title{font-size:22px;} .metric-card{min-height:96px;padding:13px;} .metric-value{font-size:24px;} .kanban-header{font-size:11px;padding:10px;}
         }
-    
-        /* =====================================================
-           KANBAN DRAG & DROP + SETA DENTRO DO CARTÃO
-           ===================================================== */
 
-        .kanban-card[data-carga-id] {
-            position: relative !important;
-            cursor: grab !important;
-            user-select: none;
-            transition:
-                border-color .15s ease,
-                transform .15s ease,
-                opacity .15s ease,
-                box-shadow .15s ease !important;
-        }
-
-        .kanban-card[data-carga-id]:active {
-            cursor: grabbing !important;
-        }
-
-        .kanban-card.dragging-card {
-            opacity: .45 !important;
-            transform: scale(.985) !important;
-            border-color: #60a5fa !important;
-            box-shadow: 0 0 0 1px rgba(96,165,250,.25) !important;
-        }
-
-        [data-testid="column"].kanban-dropzone {
-            border-radius: 12px;
-            transition: background .15s ease, box-shadow .15s ease;
-        }
-
-        [data-testid="column"].kanban-drop-active {
-            background: rgba(59,130,246,.055) !important;
-            box-shadow: inset 0 0 0 1px rgba(96,165,250,.24) !important;
-        }
-
-        [data-testid="column"].kanban-drop-active .kanban-header {
-            color: #bfdbfe !important;
-            border-bottom-color: #3b82f6 !important;
-        }
-/* Seta integrada ao próprio HTML do cartão */
-        .kanban-card {
-            position: relative !important;
-            padding-right: 46px !important;
-            padding-bottom: 16px !important;
-        }
-
-        .card-inline-arrow {
-            position: absolute;
-            right: 10px;
-            bottom: 10px;
-            width: 30px;
-            height: 30px;
-            border-radius: 7px;
-            border: 1px solid #304158;
-            background: #162131;
-            color: #cbd5e1 !important;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            font-size: 19px;
-            font-weight: 800;
-            line-height: 1;
-            text-decoration: none !important;
-            cursor: pointer;
-            z-index: 5;
-            transition: .15s ease;
-        }
-
-        .card-inline-arrow:hover {
-            background: #1a2a40;
-            border-color: #3b82f6;
-            color: #ffffff !important;
-            transform: translateX(1px);
-        }
-
-        /* O cartão pode ser arrastado, mas a seta continua clicável */
-        .card-inline-arrow {
-            -webkit-user-drag: none;
-        }
-
-        .kanban-card.dragging-card {
-            opacity: .42 !important;
-            transform: scale(.985) !important;
-        }
-
-        .kanban-drop-active {
-            background: rgba(59,130,246,.07) !important;
-            box-shadow: inset 0 0 0 1px rgba(96,165,250,.35) !important;
-        }
 
     
-        /* Painel de ações fica fora das colunas do Kanban */
-        div[data-testid="stButton"] button {
-            white-space: nowrap;
+        /* Menu compacto de ações do cartão */
+        div[data-testid="stPopover"] > button {
+            width:32px !important;
+            min-width:32px !important;
+            max-width:32px !important;
+            height:32px !important;
+            min-height:32px !important;
+            padding:0 !important;
+            border-radius:8px !important;
+            border:1px solid #304158 !important;
+            background:#162131 !important;
+            color:#cbd5e1 !important;
+            font-size:20px !important;
+            font-weight:750 !important;
+            line-height:1 !important;
         }
 
-        @media (max-width: 900px) {
-            div[data-testid="stButton"] button {
-                white-space: normal;
-            }
+        div[data-testid="stPopover"] > button:hover {
+            background:#1a2a40 !important;
+            border-color:#3b82f6 !important;
+            color:#ffffff !important;
         }
 
     </style>
@@ -1247,35 +1168,6 @@ ocorrencias_abertas = [
 # MENU LATERAL FLUTUANTE
 # ============================================================
 
-# ============================================================
-# RESTAURAÇÃO SEGURA DE NAVEGAÇÃO
-# ============================================================
-# Alterações em "menu_principal" acontecem SOMENTE antes do st.radio.
-
-pagina_url = st.query_params.get("pagina")
-acao_carga_url = st.query_params.get("acao_carga")
-mover_carga_url = st.query_params.get("mover_carga")
-mover_status_url = st.query_params.get("mover_status")
-
-mapa_paginas_url = {
-    "visao": "🏠 Visão Geral",
-    "torre": "📋 Torre de Controle",
-    "nova": "➕ Nova Carga",
-    "ocorrencias": "🚨 Ocorrências",
-    "relatorios": "📈 Relatórios",
-    "cadastros": "👥 Cadastros",
-}
-
-if acao_carga_url:
-    st.session_state["_acao_carga_id"] = str(acao_carga_url)
-    st.session_state["menu_principal"] = "📋 Torre de Controle"
-
-elif mover_carga_url and mover_status_url:
-    st.session_state["menu_principal"] = "📋 Torre de Controle"
-
-elif "menu_principal" not in st.session_state and pagina_url in mapa_paginas_url:
-    st.session_state["menu_principal"] = mapa_paginas_url[pagina_url]
-
 with st.sidebar:
     st.markdown("""
         <div style="padding:4px 4px 15px;white-space:nowrap;">
@@ -1338,10 +1230,11 @@ cabecalhos_menu = {
     "👥 Cadastros": ("Equipe e Frota", "Gerencie motoristas, ajudantes e veículos."),
 }
 
-if st.query_params.get("acao_carga"):
-    for param in ["acao_carga", "pagina"]:
+# Remove parâmetros antigos de versões anteriores sem interferir no menu.
+for parametro_antigo in ["acao_carga", "pagina", "mover_carga", "mover_status"]:
+    if st.query_params.get(parametro_antigo):
         try:
-            del st.query_params[param]
+            del st.query_params[parametro_antigo]
         except Exception:
             pass
 
@@ -1529,82 +1422,6 @@ elif menu == "📋 Torre de Controle":
     ]
 
 
-    # ============================================================
-    # MOVIMENTAÇÃO POR ARRASTAR E SOLTAR
-    # ============================================================
-    carga_id_drag = st.query_params.get("mover_carga")
-    novo_status_drag = st.query_params.get("mover_status")
-
-    if carga_id_drag and novo_status_drag:
-        carga_drag = next(
-            (c for c in cargas_lista if str(c.get("id")) == str(carga_id_drag)),
-            None,
-        )
-
-        if (
-            carga_drag
-            and novo_status_drag in colunas_status
-            and carga_drag.get("status") != novo_status_drag
-        ):
-            campos_status_drag = {"status": novo_status_drag}
-
-            if (
-                novo_status_drag == "Em Trânsito / Viagem Iniciada"
-                and not carga_drag.get("data_hora_saida_real")
-            ):
-                campos_status_drag["data_hora_saida_real"] = iso_agora_br()
-
-            if novo_status_drag == "Entregue / Concluído":
-                campos_status_drag["data_conclusao"] = str(hoje_br())
-                if not carga_drag.get("data_hora_entrega_real"):
-                    campos_status_drag["data_hora_entrega_real"] = iso_agora_br()
-
-            sucesso_drag = atualizar_campos_documento(
-                "cargas",
-                carga_id_drag,
-                campos_status_drag,
-            )
-
-            if sucesso_drag:
-                carga_drag.update(campos_status_drag)
-
-                # Atualiza também a lista da sessão para a mudança aparecer
-                # imediatamente na coluna correta.
-                for item in st.session_state["cargas"]:
-                    if str(item.get("id")) == str(carga_id_drag):
-                        item.update(campos_status_drag)
-                        break
-
-                st.session_state[f"editando_{carga_id_drag}"] = False
-
-                # Limpa somente os parâmetros do drag.
-                for param in ["mover_carga", "mover_status", "pagina"]:
-                    try:
-                        del st.query_params[param]
-                    except Exception:
-                        pass
-
-                # Força leitura fresca do Firebase após a mudança.
-                limpar_cache_firebase()
-                st.session_state["cargas"] = carregar_colecao("cargas")
-
-                st.toast(
-                    f"Carga #{carga_id_drag} movida para {novo_status_drag}.",
-                    icon="✅",
-                )
-                st.rerun()
-
-        else:
-            # Se a movimentação não é válida ou é para a mesma coluna,
-            # limpa os parâmetros sem alterar a carga.
-            for param in ["mover_carga", "mover_status", "pagina"]:
-                try:
-                    del st.query_params[param]
-                except Exception:
-                    pass
-
-    st.caption("↔️ Clique, segure e arraste a carga para outra coluna.")
-
     paleta_cores = ["#58a6ff", "#3fb950", "#d29922", "#bc8cff", "#f85149", "#39c5bb", "#f0883e", "#db61a2"]
     mapa_cores = {mot: paleta_cores[i % len(paleta_cores)] for i, mot in enumerate(motoristas_lista)}
 
@@ -1672,13 +1489,7 @@ elif menu == "📋 Torre de Controle":
                         badge_card = ""
 
                     render_html(f"""
-                        <div
-                            class="kanban-card"
-                            data-carga-id="{carga_id}"
-                            data-current-status="{status}"
-                            draggable="true"
-                            style="border-left:2px solid {cor_borda};"
-                        >
+                        <div class="kanban-card" style="border-left:2px solid {cor_borda};">
                             <div class="card-topline">
                                 <div class="card-id">#{carga_id}</div>
                                 <div>{badge_card}</div>
@@ -1686,18 +1497,90 @@ elif menu == "📋 Torre de Controle":
                             <div class="card-destination">{carga.get('destino', '') or 'Sem destino'}</div>
                             <div class="card-meta">👤 {motorista_atual or 'Sem motorista'} &nbsp; 🚛 {veiculo_atual or 'Sem veículo'}</div>
                             <div class="card-deadline">Entrega: <strong>{entrega_br or '—'}</strong></div>
-                            <a
-                                class="card-inline-arrow"
-                                href="?acao_carga={carga_id}&pagina=torre"
-                                draggable="false"
-                                title="Abrir ações da carga"
-                                onclick="event.stopPropagation();"
-                            >›</a>
                         </div>
                     """)
 
-                    # Ações são exibidas fora das colunas para evitar
-                    # botões estreitos/quebrados no Kanban.
+                    # ==================================================
+                    # STATUS + AÇÕES DO CARTÃO
+                    # ==================================================
+                    col_acao_espaco, col_acao = st.columns([8.5, 1])
+
+                    with col_acao:
+                        with st.popover("›"):
+                            st.markdown(f"**Planejamento #{carga_id}**")
+                            st.caption("Status e ações da carga")
+
+                            novo_status_selecionado = st.selectbox(
+                                "Status",
+                                colunas_status,
+                                index=(
+                                    colunas_status.index(status)
+                                    if status in colunas_status
+                                    else 0
+                                ),
+                                key=f"status_popover_{carga_id}",
+                            )
+
+                            if novo_status_selecionado != status:
+                                if st.button(
+                                    "↪ Atualizar status",
+                                    key=f"atualizar_status_{carga_id}",
+                                    type="primary",
+                                    use_container_width=True,
+                                ):
+                                    campos_status = {
+                                        "status": novo_status_selecionado
+                                    }
+
+                                    if (
+                                        novo_status_selecionado
+                                        == "Em Trânsito / Viagem Iniciada"
+                                        and not carga.get("data_hora_saida_real")
+                                    ):
+                                        campos_status["data_hora_saida_real"] = iso_agora_br()
+
+                                    if novo_status_selecionado == "Entregue / Concluído":
+                                        campos_status["data_conclusao"] = str(hoje_br())
+
+                                        if not carga.get("data_hora_entrega_real"):
+                                            campos_status["data_hora_entrega_real"] = iso_agora_br()
+
+                                    sucesso = atualizar_campos_documento(
+                                        "cargas",
+                                        carga_id,
+                                        campos_status,
+                                    )
+
+                                    if sucesso:
+                                        carga.update(campos_status)
+
+                                        for item in st.session_state["cargas"]:
+                                            if str(item.get("id")) == str(carga_id):
+                                                item.update(campos_status)
+                                                break
+
+                                        st.rerun()
+
+                            st.markdown("---")
+
+                            if st.button(
+                                "✏️ Editar carga",
+                                key=f"acao_editar_{carga_id}",
+                                use_container_width=True,
+                            ):
+                                st.session_state["_acao_carga_id"] = str(carga_id)
+                                st.session_state[f"editando_{carga_id}"] = True
+                                st.rerun()
+
+                            if st.button(
+                                "🗑️ Excluir carga",
+                                key=f"acao_excluir_{carga_id}",
+                                use_container_width=True,
+                            ):
+                                st.session_state["_acao_carga_id"] = str(carga_id)
+                                st.session_state[f"confirmar_exclusao_{carga_id}"] = True
+                                st.rerun()
+
     # ============================================================
     # PAINEL DE AÇÕES FORA DO KANBAN
     # ============================================================
@@ -1899,179 +1782,6 @@ elif menu == "📋 Torre de Controle":
                 st.session_state["_acao_carga_id"] = None
                 st.session_state[f"editando_{carga_acao_id}"] = False
                 st.rerun()
-
-
-    # Ativa drag-and-drop no DOM da página principal.
-    components.html(
-        """
-        <script>
-        (() => {
-            const doc = window.parent.document;
-            const win = window.parent;
-
-            function clean(value) {
-                return (value || "").trim();
-            }
-
-            function navigateMove(cargaId, novoStatus) {
-                if (!cargaId || !novoStatus) return;
-
-                const url = new URL(win.location.href);
-                url.searchParams.delete("acao_carga");
-                url.searchParams.set("pagina", "torre");
-                url.searchParams.set("mover_carga", cargaId);
-                url.searchParams.set("mover_status", novoStatus);
-
-                // replace reduz chance de o browser restaurar a posição antiga
-                // com parâmetros antigos no histórico.
-                win.location.replace(url.toString());
-            }
-
-            function bindKanban() {
-                const headers = [...doc.querySelectorAll(
-                    '.kanban-header[data-kanban-status]'
-                )];
-
-                const cards = [...doc.querySelectorAll(
-                    '.kanban-card[data-carga-id]'
-                )];
-
-                if (!headers.length || !cards.length) return;
-
-                headers.forEach((header) => {
-                    const column = header.closest('[data-testid="column"]');
-                    if (!column) return;
-
-                    const status = clean(header.dataset.kanbanStatus);
-                    if (!status) return;
-
-                    column.dataset.kanbanStatus = status;
-                    column.classList.add("kanban-dropzone");
-
-                    if (column.dataset.dropBound === "1") return;
-                    column.dataset.dropBound = "1";
-
-                    const allowDrop = (event) => {
-                        event.preventDefault();
-                        event.stopPropagation();
-
-                        if (event.dataTransfer) {
-                            event.dataTransfer.dropEffect = "move";
-                        }
-
-                        column.classList.add("kanban-drop-active");
-                    };
-
-                    column.addEventListener("dragover", allowDrop, true);
-                    column.addEventListener("dragenter", allowDrop, true);
-
-                    column.addEventListener("dragleave", (event) => {
-                        const rect = column.getBoundingClientRect();
-                        const outside =
-                            event.clientX <= rect.left ||
-                            event.clientX >= rect.right ||
-                            event.clientY <= rect.top ||
-                            event.clientY >= rect.bottom;
-
-                        if (outside) {
-                            column.classList.remove("kanban-drop-active");
-                        }
-                    }, true);
-
-                    column.addEventListener("drop", (event) => {
-                        event.preventDefault();
-                        event.stopImmediatePropagation();
-
-                        const cargaId =
-                            event.dataTransfer?.getData("text/plain") || "";
-
-                        const origem =
-                            event.dataTransfer?.getData("text/x-status") || "";
-
-                        const destino = clean(column.dataset.kanbanStatus);
-
-                        doc.querySelectorAll(".kanban-drop-active").forEach((el) => {
-                            el.classList.remove("kanban-drop-active");
-                        });
-
-                        if (!cargaId || !destino || clean(origem) === destino) {
-                            return;
-                        }
-
-                        // Feedback visual imediato antes do reload.
-                        const dragged = doc.querySelector(
-                            `.kanban-card[data-carga-id="${CSS.escape(cargaId)}"]`
-                        );
-
-                        if (dragged) {
-                            dragged.style.opacity = "0.25";
-                        }
-
-                        navigateMove(cargaId, destino);
-                    }, true);
-                });
-
-                cards.forEach((card) => {
-                    card.setAttribute("draggable", "true");
-
-                    if (card.dataset.dragBound === "1") return;
-                    card.dataset.dragBound = "1";
-
-                    card.addEventListener("dragstart", (event) => {
-                        if (event.target?.closest?.(".card-inline-arrow")) {
-                            event.preventDefault();
-                            return;
-                        }
-
-                        const id = card.dataset.cargaId || "";
-                        const origem = clean(card.dataset.currentStatus);
-
-                        if (!id || !event.dataTransfer) {
-                            event.preventDefault();
-                            return;
-                        }
-
-                        card.classList.add("dragging-card");
-
-                        event.dataTransfer.effectAllowed = "move";
-                        event.dataTransfer.setData("text/plain", id);
-                        event.dataTransfer.setData("text/x-status", origem);
-                    });
-
-                    card.addEventListener("dragend", () => {
-                        card.classList.remove("dragging-card");
-
-                        doc.querySelectorAll(".kanban-drop-active").forEach((el) => {
-                            el.classList.remove("kanban-drop-active");
-                        });
-                    });
-                });
-            }
-
-            let tries = 0;
-            const timer = setInterval(() => {
-                tries += 1;
-                bindKanban();
-
-                if (tries >= 60) {
-                    clearInterval(timer);
-                }
-            }, 100);
-
-            const observer = new MutationObserver(bindKanban);
-
-            observer.observe(doc.body, {
-                childList: true,
-                subtree: true
-            });
-
-            setTimeout(() => observer.disconnect(), 25000);
-        })();
-        </script>
-        """,
-        height=0,
-        width=0,
-    )
 
 
 # ============================================================
