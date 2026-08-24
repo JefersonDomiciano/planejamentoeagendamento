@@ -469,6 +469,18 @@ footer {visibility: hidden;}
             box-shadow: inset 0 0 0 1px rgba(96,165,250,.35) !important;
         }
 
+    
+        /* Painel de ações fica fora das colunas do Kanban */
+        div[data-testid="stButton"] button {
+            white-space: nowrap;
+        }
+
+        @media (max-width: 900px) {
+            div[data-testid="stButton"] button {
+                white-space: normal;
+            }
+        }
+
     </style>
     """,
     unsafe_allow_html=True
@@ -1517,11 +1529,16 @@ elif menu == "📋 Torre de Controle":
 
                 st.session_state[f"editando_{carga_id_drag}"] = False
 
-                # Só limpa a URL DEPOIS de salvar no Firebase.
-                try:
-                    st.query_params.clear()
-                except Exception:
-                    pass
+                # Limpa somente os parâmetros do drag.
+                for param in ["mover_carga", "mover_status"]:
+                    try:
+                        del st.query_params[param]
+                    except Exception:
+                        pass
+
+                # Força leitura fresca do Firebase após a mudança.
+                limpar_cache_firebase()
+                st.session_state["cargas"] = carregar_colecao("cargas")
 
                 st.toast(
                     f"Carga #{carga_id_drag} movida para {novo_status_drag}.",
@@ -1532,16 +1549,18 @@ elif menu == "📋 Torre de Controle":
         else:
             # Se a movimentação não é válida ou é para a mesma coluna,
             # limpa os parâmetros sem alterar a carga.
-            try:
-                st.query_params.clear()
-            except Exception:
-                pass
+            for param in ["mover_carga", "mover_status"]:
+                try:
+                    del st.query_params[param]
+                except Exception:
+                    pass
 
     st.caption("↔️ Clique, segure e arraste a carga para outra coluna.")
 
-    carga_acao_id = st.query_params.get("acao_carga")
-    if carga_acao_id:
-        st.session_state["_acao_carga_id"] = str(carga_acao_id)
+    carga_acao_query = st.query_params.get("acao_carga")
+    if carga_acao_query:
+        st.session_state["_acao_carga_id"] = str(carga_acao_query)
+
         try:
             del st.query_params["acao_carga"]
         except Exception:
@@ -1639,125 +1658,209 @@ elif menu == "📋 Torre de Controle":
                         </div>
                     """)
 
-                    # ==================================================
-                    # AÇÕES DA CARGA SELECIONADA PELA SETA DO CARTÃO
-                    # ==================================================
-                    if st.session_state.get("_acao_carga_id") == str(carga_id):
-                        with st.container(border=True):
-                            ac1, ac2, ac3 = st.columns([3, 1, 1])
+                    # Ações são exibidas fora das colunas para evitar
+                    # botões estreitos/quebrados no Kanban.
+    # ============================================================
+    # PAINEL DE AÇÕES FORA DO KANBAN
+    # ============================================================
+    carga_acao_id = st.session_state.get("_acao_carga_id")
 
-                            with ac1:
-                                st.caption(f"Ações do planejamento #{carga_id}")
+    if carga_acao_id:
+        carga_acao = next(
+            (c for c in cargas_lista if str(c.get("id")) == str(carga_acao_id)),
+            None,
+        )
 
-                            with ac2:
-                                if st.button(
-                                    "✏️ Editar",
-                                    key=f"btn_edit_{carga_id}",
-                                    use_container_width=True,
-                                ):
-                                    st.session_state[f"editando_{carga_id}"] = not st.session_state.get(
-                                        f"editando_{carga_id}",
-                                        False,
-                                    )
-                                    st.session_state["_acao_carga_id"] = None
-                                    st.rerun()
+        if carga_acao:
+            st.markdown("---")
+            st.markdown(f"### Ações do planejamento #{carga_acao_id}")
 
-                            with ac3:
-                                if st.button(
-                                    "🗑️ Excluir",
-                                    key=f"btn_del_{carga_id}",
-                                    use_container_width=True,
-                                ):
-                                    st.session_state[f"confirmar_exclusao_{carga_id}"] = True
-                                    st.session_state["_acao_carga_id"] = None
-                                    st.rerun()
+            ac1, ac2, ac3 = st.columns([2, 1, 1])
 
-                            if st.button(
-                                "Fechar",
-                                key=f"fechar_acoes_{carga_id}",
-                                use_container_width=True,
-                            ):
-                                st.session_state["_acao_carga_id"] = None
-                                st.rerun()
+            with ac1:
+                st.caption(
+                    f"{carga_acao.get('destino', '') or 'Sem destino'} • "
+                    f"{carga_acao.get('motorista', '') or 'Sem motorista'} • "
+                    f"{carga_acao.get('veiculo', '') or 'Sem veículo'}"
+                )
 
-                    # Confirmação de exclusão
-                    if st.session_state.get(f"confirmar_exclusao_{carga_id}", False):
-                        st.warning(f"Tem certeza que deseja excluir a carga/planejamento {carga_id}?")
-                        cx1, cx2 = st.columns(2)
-                        with cx1:
-                            if st.button("Sim, excluir", key=f"confirm_del_{carga_id}", type="primary"):
-                                sucesso = deletar_documento("cargas", carga_id)
-                                if sucesso:
-                                    st.session_state["cargas"] = [c for c in cargas_lista if c.get("id") != carga_id]
-                                    st.session_state[f"confirmar_exclusao_{carga_id}"] = False
-                                    st.success("Carga excluída.")
-                                    st.rerun()
-                        with cx2:
-                            if st.button("Cancelar", key=f"cancel_del_{carga_id}"):
-                                st.session_state[f"confirmar_exclusao_{carga_id}"] = False
-                                st.rerun()
+            with ac2:
+                if st.button(
+                    "✏️ Editar carga",
+                    key=f"abrir_edicao_{carga_acao_id}",
+                    use_container_width=True,
+                ):
+                    st.session_state[f"editando_{carga_acao_id}"] = True
 
+            with ac3:
+                if st.button(
+                    "🗑️ Excluir carga",
+                    key=f"abrir_exclusao_{carga_acao_id}",
+                    use_container_width=True,
+                ):
+                    st.session_state[f"confirmar_exclusao_{carga_acao_id}"] = True
 
-                    # ==================================================
-                    # FORMULÁRIO DE EDIÇÃO
-                    # ==================================================
-                    if st.session_state.get(f"editando_{carga_id}", False):
-                        with st.form(key=f"form_edit_{carga_id}"):
-                            st.markdown(f"**✏️ Editando Planejamento #{carga_id}**")
-                            
-                            mot_idx = motoristas_lista.index(carga.get("motorista")) if carga.get("motorista") in motoristas_lista else 0
-                            novo_mot = st.selectbox("Motorista", motoristas_lista if motoristas_lista else [""], index=mot_idx)
-                            veic_opcoes = ["Não definido"] + veiculos_lista
-                            veic_atual = carga.get("veiculo", "") or "Não definido"
-                            veic_idx = veic_opcoes.index(veic_atual) if veic_atual in veic_opcoes else 0
-                            novo_veiculo = st.selectbox("Veículo", veic_opcoes, index=veic_idx, key=f"veiculo_{carga_id}")
-                            novo_dest = st.text_input("Destino", value=carga.get("destino", ""))
-                            novo_obs = st.text_area("Observações / Rota", value=carga.get("observacoes", ""))
-                            
-                            ajudantes_existentes = carga.get("ajudantes", [])
-                            if not isinstance(ajudantes_existentes, list):
-                                ajudantes_existentes = []
+            if st.session_state.get(f"confirmar_exclusao_{carga_acao_id}", False):
+                st.warning(
+                    f"Tem certeza que deseja excluir a carga/planejamento {carga_acao_id}?"
+                )
+                ex1, ex2 = st.columns(2)
 
-                            ajudantes_editados = st.multiselect(
-                                "Ajudantes",
-                                ajudantes_lista,
-                                default=[a for a in ajudantes_existentes if a in ajudantes_lista]
+                with ex1:
+                    if st.button(
+                        "Sim, excluir",
+                        key=f"confirm_del_{carga_acao_id}",
+                        type="primary",
+                        use_container_width=True,
+                    ):
+                        sucesso = deletar_documento("cargas", carga_acao_id)
+
+                        if sucesso:
+                            st.session_state["cargas"] = [
+                                c for c in cargas_lista
+                                if str(c.get("id")) != str(carga_acao_id)
+                            ]
+                            st.session_state["_acao_carga_id"] = None
+                            st.session_state[f"confirmar_exclusao_{carga_acao_id}"] = False
+                            st.rerun()
+
+                with ex2:
+                    if st.button(
+                        "Cancelar exclusão",
+                        key=f"cancel_del_{carga_acao_id}",
+                        use_container_width=True,
+                    ):
+                        st.session_state[f"confirmar_exclusao_{carga_acao_id}"] = False
+                        st.rerun()
+
+            if st.session_state.get(f"editando_{carga_acao_id}", False):
+                with st.form(key=f"form_edit_externo_{carga_acao_id}"):
+                    st.markdown("#### Editar carga")
+
+                    mot_atual = carga_acao.get("motorista", "")
+                    mot_idx = (
+                        motoristas_lista.index(mot_atual)
+                        if mot_atual in motoristas_lista
+                        else 0
+                    )
+
+                    novo_mot = st.selectbox(
+                        "Motorista",
+                        motoristas_lista if motoristas_lista else [""],
+                        index=mot_idx,
+                    )
+
+                    veic_opcoes = ["Não definido"] + veiculos_lista
+                    veic_atual = carga_acao.get("veiculo", "") or "Não definido"
+                    veic_idx = (
+                        veic_opcoes.index(veic_atual)
+                        if veic_atual in veic_opcoes
+                        else 0
+                    )
+
+                    novo_veiculo = st.selectbox(
+                        "Veículo",
+                        veic_opcoes,
+                        index=veic_idx,
+                    )
+
+                    novo_dest = st.text_input(
+                        "Destino",
+                        value=carga_acao.get("destino", ""),
+                    )
+
+                    novo_obs = st.text_area(
+                        "Observações / Rota",
+                        value=carga_acao.get("observacoes", ""),
+                    )
+
+                    ajudantes_existentes = carga_acao.get("ajudantes", [])
+                    if not isinstance(ajudantes_existentes, list):
+                        ajudantes_existentes = []
+
+                    ajudantes_editados = st.multiselect(
+                        "Ajudantes",
+                        ajudantes_lista,
+                        default=[
+                            a for a in ajudantes_existentes
+                            if a in ajudantes_lista
+                        ],
+                    )
+
+                    dt_saida_val = (
+                        converter_para_data(carga_acao.get("data_saida"))
+                        or hoje_br()
+                    )
+                    dt_ent_val = (
+                        converter_para_data(carga_acao.get("data_entrega"))
+                        or hoje_br()
+                    )
+
+                    nova_saida = st.date_input(
+                        "Data Saída",
+                        value=dt_saida_val,
+                    )
+                    nova_entrega = st.date_input(
+                        "Data Entrega",
+                        value=dt_ent_val,
+                    )
+
+                    salvar_edicao = st.form_submit_button(
+                        "💾 Salvar alterações",
+                        type="primary",
+                    )
+
+                    if salvar_edicao:
+                        novo_veiculo_valor = (
+                            "" if novo_veiculo == "Não definido"
+                            else novo_veiculo
+                        )
+
+                        conflitos = conflitos_alocacao(
+                            cargas_lista,
+                            novo_mot,
+                            novo_veiculo_valor,
+                            nova_saida,
+                            nova_entrega,
+                            ignorar_id=carga_acao_id,
+                        )
+
+                        if nova_entrega < nova_saida:
+                            st.error(
+                                "A data de entrega não pode ser anterior à saída."
+                            )
+                        elif conflitos:
+                            st.error("Conflito de programação encontrado:")
+                            for conflito in conflitos:
+                                st.warning(conflito)
+                        else:
+                            carga_acao["motorista"] = novo_mot
+                            carga_acao["veiculo"] = novo_veiculo_valor
+                            carga_acao["destino"] = novo_dest
+                            carga_acao["observacoes"] = novo_obs
+                            carga_acao["ajudantes"] = ajudantes_editados
+                            carga_acao["data_saida"] = str(nova_saida)
+                            carga_acao["data_entrega"] = str(nova_entrega)
+
+                            sucesso = salvar_documento(
+                                "cargas",
+                                carga_acao_id,
+                                carga_acao,
                             )
 
-                            dt_saida_val = converter_para_data(carga.get("data_saida")) or hoje_br()
-                            dt_ent_val = converter_para_data(carga.get("data_entrega")) or hoje_br()
+                            if sucesso:
+                                st.session_state[f"editando_{carga_acao_id}"] = False
+                                st.session_state["_acao_carga_id"] = None
+                                st.success("Carga atualizada com sucesso!")
+                                st.rerun()
 
-                            nova_saida = st.date_input("Data Saída", value=dt_saida_val, key=f"saida_{carga_id}")
-                            nova_entrega = st.date_input("Data Entrega", value=dt_ent_val, key=f"entrega_{carga_id}")
-
-                            salvar_edicao = st.form_submit_button("💾 Salvar Alterações")
-
-                            if salvar_edicao:
-                                novo_veiculo_valor = "" if novo_veiculo == "Não definido" else novo_veiculo
-                                conflitos = conflitos_alocacao(cargas_lista, novo_mot, novo_veiculo_valor, nova_saida, nova_entrega, ignorar_id=carga_id)
-                                if nova_entrega < nova_saida:
-                                    st.error("A data de entrega não pode ser anterior à saída.")
-                                    st.stop()
-                                if conflitos:
-                                    st.error("Conflito de programação encontrado:")
-                                    for conflito in conflitos:
-                                        st.warning(conflito)
-                                    st.stop()
-                                carga["motorista"] = novo_mot
-                                carga["veiculo"] = novo_veiculo_valor
-                                carga["destino"] = novo_dest
-                                carga["observacoes"] = novo_obs
-                                carga["ajudantes"] = ajudantes_editados
-                                carga["data_saida"] = str(nova_saida)
-                                carga["data_entrega"] = str(nova_entrega)
-
-                                sucesso = salvar_documento("cargas", carga_id, carga)
-
-                                if sucesso:
-                                    st.session_state[f"editando_{carga_id}"] = False
-                                    st.success("Carga atualizada com sucesso!")
-                                    st.rerun()
-
+            if st.button(
+                "Fechar ações",
+                key=f"fechar_acoes_{carga_acao_id}",
+            ):
+                st.session_state["_acao_carga_id"] = None
+                st.session_state[f"editando_{carga_acao_id}"] = False
+                st.rerun()
 
 
     # Ativa drag-and-drop no DOM da página principal.
@@ -1768,21 +1871,24 @@ elif menu == "📋 Torre de Controle":
             const doc = window.parent.document;
             const win = window.parent;
 
-            function limpar(v) {
-                return (v || "").trim();
+            function clean(value) {
+                return (value || "").trim();
             }
 
-            function moverCarga(cargaId, status) {
-                if (!cargaId || !status) return;
+            function navigateMove(cargaId, novoStatus) {
+                if (!cargaId || !novoStatus) return;
 
                 const url = new URL(win.location.href);
                 url.searchParams.delete("acao_carga");
                 url.searchParams.set("mover_carga", cargaId);
-                url.searchParams.set("mover_status", status);
-                win.location.href = url.toString();
+                url.searchParams.set("mover_status", novoStatus);
+
+                // replace reduz chance de o browser restaurar a posição antiga
+                // com parâmetros antigos no histórico.
+                win.location.replace(url.toString());
             }
 
-            function preparar() {
+            function bindKanban() {
                 const headers = [...doc.querySelectorAll(
                     '.kanban-header[data-kanban-status]'
                 )];
@@ -1793,105 +1899,104 @@ elif menu == "📋 Torre de Controle":
 
                 if (!headers.length || !cards.length) return;
 
-                const columns = [];
-
                 headers.forEach((header) => {
-                    const col = header.closest('[data-testid="column"]');
-                    if (!col) return;
+                    const column = header.closest('[data-testid="column"]');
+                    if (!column) return;
 
-                    const status = limpar(header.dataset.kanbanStatus);
+                    const status = clean(header.dataset.kanbanStatus);
                     if (!status) return;
 
-                    col.dataset.kanbanStatus = status;
-                    col.classList.add("kanban-dropzone");
-                    columns.push(col);
+                    column.dataset.kanbanStatus = status;
+                    column.classList.add("kanban-dropzone");
 
-                    if (col.dataset.dndReady === "1") return;
-                    col.dataset.dndReady = "1";
+                    if (column.dataset.dropBound === "1") return;
+                    column.dataset.dropBound = "1";
 
-                    // Capture=true ajuda quando o drop acontece sobre widgets filhos.
-                    col.addEventListener("dragover", (ev) => {
-                        ev.preventDefault();
-                        ev.stopPropagation();
-                        if (ev.dataTransfer) {
-                            ev.dataTransfer.dropEffect = "move";
+                    const allowDrop = (event) => {
+                        event.preventDefault();
+                        event.stopPropagation();
+
+                        if (event.dataTransfer) {
+                            event.dataTransfer.dropEffect = "move";
                         }
-                        col.classList.add("kanban-drop-active");
-                    }, true);
 
-                    col.addEventListener("dragenter", (ev) => {
-                        ev.preventDefault();
-                        ev.stopPropagation();
-                        col.classList.add("kanban-drop-active");
-                    }, true);
+                        column.classList.add("kanban-drop-active");
+                    };
 
-                    col.addEventListener("dragleave", (ev) => {
-                        const rect = col.getBoundingClientRect();
-                        const x = ev.clientX;
-                        const y = ev.clientY;
+                    column.addEventListener("dragover", allowDrop, true);
+                    column.addEventListener("dragenter", allowDrop, true);
 
-                        const fora =
-                            x <= rect.left ||
-                            x >= rect.right ||
-                            y <= rect.top ||
-                            y >= rect.bottom;
+                    column.addEventListener("dragleave", (event) => {
+                        const rect = column.getBoundingClientRect();
+                        const outside =
+                            event.clientX <= rect.left ||
+                            event.clientX >= rect.right ||
+                            event.clientY <= rect.top ||
+                            event.clientY >= rect.bottom;
 
-                        if (fora) {
-                            col.classList.remove("kanban-drop-active");
+                        if (outside) {
+                            column.classList.remove("kanban-drop-active");
                         }
                     }, true);
 
-                    col.addEventListener("drop", (ev) => {
-                        ev.preventDefault();
-                        ev.stopPropagation();
+                    column.addEventListener("drop", (event) => {
+                        event.preventDefault();
+                        event.stopImmediatePropagation();
 
                         const cargaId =
-                            ev.dataTransfer?.getData("text/plain") || "";
+                            event.dataTransfer?.getData("text/plain") || "";
 
                         const origem =
-                            ev.dataTransfer?.getData("application/x-origem") || "";
+                            event.dataTransfer?.getData("text/x-status") || "";
 
-                        const destino = limpar(col.dataset.kanbanStatus);
+                        const destino = clean(column.dataset.kanbanStatus);
 
                         doc.querySelectorAll(".kanban-drop-active").forEach((el) => {
                             el.classList.remove("kanban-drop-active");
                         });
 
-                        if (
-                            cargaId &&
-                            destino &&
-                            limpar(origem) !== destino
-                        ) {
-                            moverCarga(cargaId, destino);
+                        if (!cargaId || !destino || clean(origem) === destino) {
+                            return;
                         }
+
+                        // Feedback visual imediato antes do reload.
+                        const dragged = doc.querySelector(
+                            `.kanban-card[data-carga-id="${CSS.escape(cargaId)}"]`
+                        );
+
+                        if (dragged) {
+                            dragged.style.opacity = "0.25";
+                        }
+
+                        navigateMove(cargaId, destino);
                     }, true);
                 });
 
                 cards.forEach((card) => {
                     card.setAttribute("draggable", "true");
 
-                    if (card.dataset.dndReady === "1") return;
-                    card.dataset.dndReady = "1";
+                    if (card.dataset.dragBound === "1") return;
+                    card.dataset.dragBound = "1";
 
-                    card.addEventListener("dragstart", (ev) => {
-                        // Não começa drag se iniciou pela seta.
-                        if (ev.target?.closest?.(".card-inline-arrow")) {
-                            ev.preventDefault();
+                    card.addEventListener("dragstart", (event) => {
+                        if (event.target?.closest?.(".card-inline-arrow")) {
+                            event.preventDefault();
                             return;
                         }
 
                         const id = card.dataset.cargaId || "";
-                        const origem = limpar(card.dataset.currentStatus);
+                        const origem = clean(card.dataset.currentStatus);
 
-                        if (!id || !ev.dataTransfer) {
-                            ev.preventDefault();
+                        if (!id || !event.dataTransfer) {
+                            event.preventDefault();
                             return;
                         }
 
                         card.classList.add("dragging-card");
-                        ev.dataTransfer.effectAllowed = "move";
-                        ev.dataTransfer.setData("text/plain", id);
-                        ev.dataTransfer.setData("application/x-origem", origem);
+
+                        event.dataTransfer.effectAllowed = "move";
+                        event.dataTransfer.setData("text/plain", id);
+                        event.dataTransfer.setData("text/x-status", origem);
                     });
 
                     card.addEventListener("dragend", () => {
@@ -1904,17 +2009,24 @@ elif menu == "📋 Torre de Controle":
                 });
             }
 
-            let loops = 0;
+            let tries = 0;
             const timer = setInterval(() => {
-                loops += 1;
-                preparar();
-                if (loops >= 50) clearInterval(timer);
+                tries += 1;
+                bindKanban();
+
+                if (tries >= 60) {
+                    clearInterval(timer);
+                }
             }, 100);
 
-            const observer = new MutationObserver(preparar);
-            observer.observe(doc.body, {childList:true, subtree:true});
+            const observer = new MutationObserver(bindKanban);
 
-            setTimeout(() => observer.disconnect(), 20000);
+            observer.observe(doc.body, {
+                childList: true,
+                subtree: true
+            });
+
+            setTimeout(() => observer.disconnect(), 25000);
         })();
         </script>
         """,
