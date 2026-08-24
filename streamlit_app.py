@@ -250,7 +250,7 @@ st.markdown(
             background:linear-gradient(145deg,#17202e 0%,#121925 100%) !important;
             border:1px solid #2a3749 !important;
             border-radius:10px !important;
-            padding:11px 12px !important;
+            padding:11px 46px 14px 12px !important;
             margin:0 0 8px 0 !important;
             box-shadow:none !important;
         }
@@ -286,21 +286,6 @@ st.markdown(
             transform:translateX(2px);
         }
 
-        /* Puxa o botão para dentro da área visual do cartão */
-        div[data-testid="stPopover"] {
-            margin-top:-50px !important;
-            margin-right:8px !important;
-            position:relative !important;
-            z-index:20 !important;
-        }
-
-        /* Evita que a linha da seta crie espaço vertical extra */
-        .card-action-row {
-            height:0;
-            min-height:0;
-            margin:0;
-            padding:0;
-        }
 
         .section-caption {color:#f1f5f9;font-size:15px;font-weight:850;margin:10px 0 9px;}
         .app-footer {
@@ -335,7 +320,7 @@ footer {visibility: hidden;}
 
         .kanban-header {text-align:left; background:linear-gradient(135deg,#182235 0%,#111827 100%); color:#f8fafc!important; padding:13px 14px; border-radius:12px; font-weight:750; font-size:13px; border:1px solid #273449; margin-bottom:10px; box-shadow:0 8px 24px rgba(0,0,0,.14);}
         .kanban-count {color:#71819a!important; font-size:11px; font-weight:600;}
-        .kanban-card {background:linear-gradient(145deg,#172131 0%,#111827 100%); border:1px solid #263449; border-radius:12px; padding:12px 14px; margin:0 0 12px 0; box-shadow:0 10px 26px rgba(0,0,0,.16);}
+        .kanban-card {background:linear-gradient(145deg,#172131 0%,#111827 100%); border:1px solid #263449; border-radius:12px; padding:12px 46px 15px 14px; margin:0 0 12px 0; box-shadow:0 10px 26px rgba(0,0,0,.16);}
         .card-label {color:#73849a; font-size:10px; font-weight:700; text-transform:uppercase; letter-spacing:.7px;}
         .card-id {color:#60a5fa; font-size:12px; font-weight:800;}
         .card-driver {color:#f8fafc; font-size:13px; font-weight:800; margin:6px 0 6px;}
@@ -434,59 +419,47 @@ footer {visibility: hidden;}
             border-bottom-color: #3b82f6 !important;
         }
 
-        /* Campo ponte usado somente para comunicar o drop ao Python */
-        div[data-testid="stTextInput"]:has(input[aria-label="drag_payload_interno"]) {
-            position: absolute !important;
-            width: 1px !important;
-            height: 1px !important;
-            min-height: 1px !important;
-            opacity: 0 !important;
-            overflow: hidden !important;
-            pointer-events: none !important;
-            margin: 0 !important;
-            padding: 0 !important;
-        }
 
-        /* A seta é um controle pequeno sobreposto no canto do card */
+        /* Seta visualmente DENTRO do canto inferior direito do cartão */
         div[data-testid="stPopover"].card-arrow-popover {
-            width: 32px !important;
-            height: 32px !important;
-            margin-left: auto !important;
-            margin-right: 10px !important;
-            margin-top: -48px !important;
-            margin-bottom: 16px !important;
-            position: relative !important;
-            z-index: 30 !important;
+            width:30px !important;
+            height:30px !important;
+            margin-left:auto !important;
+            margin-right:12px !important;
+            margin-top:-49px !important;
+            margin-bottom:18px !important;
+            position:relative !important;
+            z-index:40 !important;
         }
 
-        div[data-testid="stPopover"].card-arrow-popover > button,
-        div[data-testid="stPopover"] > button {
-            width: 32px !important;
-            min-width: 32px !important;
-            max-width: 32px !important;
-            height: 32px !important;
-            min-height: 32px !important;
-            padding: 0 !important;
-            border-radius: 8px !important;
-            border: 1px solid #304158 !important;
-            background: #162131 !important;
-            color: #cbd5e1 !important;
-            font-size: 20px !important;
-            font-weight: 750 !important;
-            line-height: 1 !important;
-            box-shadow: 0 4px 12px rgba(0,0,0,.16) !important;
+        div[data-testid="stPopover"].card-arrow-popover > button {
+            width:30px !important;
+            min-width:30px !important;
+            max-width:30px !important;
+            height:30px !important;
+            min-height:30px !important;
+            padding:0 !important;
+            border-radius:7px !important;
+            border:1px solid #304158 !important;
+            background:#162131 !important;
+            color:#cbd5e1 !important;
+            font-size:19px !important;
+            font-weight:750 !important;
+            line-height:1 !important;
+            box-shadow:0 3px 10px rgba(0,0,0,.20) !important;
         }
 
-        div[data-testid="stPopover"] > button:hover {
-            background: #1a2a40 !important;
-            border-color: #3b82f6 !important;
-            color: #ffffff !important;
+        div[data-testid="stPopover"].card-arrow-popover > button:hover {
+            background:#1a2a40 !important;
+            border-color:#3b82f6 !important;
+            color:#ffffff !important;
         }
 
-        /* Não deixa o botão parecer uma linha separada abaixo do cartão */
-        .card-action-row,
-        div[data-testid="stHorizontalBlock"]:has(.card-action-spacer) {
-            min-height: 0 !important;
+        .card-action-row {
+            height:0 !important;
+            min-height:0 !important;
+            margin:0 !important;
+            padding:0 !important;
         }
 
     </style>
@@ -1492,62 +1465,62 @@ elif menu == "📋 Torre de Controle":
     # ============================================================
     # MOVIMENTAÇÃO POR ARRASTAR E SOLTAR
     # ============================================================
-    drag_payload = st.session_state.get("_drag_payload", "")
+    # O JavaScript envia a carga/status pela URL. Isso força um reload real
+    # da página e funciona de forma mais confiável no Streamlit Cloud.
+    carga_id_drag = st.query_params.get("mover_carga")
+    novo_status_drag = st.query_params.get("mover_status")
 
-    if drag_payload:
-        partes_drag = str(drag_payload).split("|||", 1)
+    if carga_id_drag and novo_status_drag:
+        carga_drag = next(
+            (c for c in cargas_lista if str(c.get("id")) == str(carga_id_drag)),
+            None,
+        )
 
-        # Limpa antes de recriar o widget nesta execução.
-        st.session_state["_drag_payload"] = ""
+        # Remove os parâmetros da URL antes de atualizar/rerodar.
+        try:
+            del st.query_params["mover_carga"]
+        except Exception:
+            pass
 
-        if len(partes_drag) == 2:
-            carga_id_drag, novo_status_drag = partes_drag
-            carga_drag = next(
-                (c for c in cargas_lista if str(c.get("id")) == str(carga_id_drag)),
-                None,
-            )
+        try:
+            del st.query_params["mover_status"]
+        except Exception:
+            pass
+
+        if (
+            carga_drag
+            and novo_status_drag in colunas_status
+            and carga_drag.get("status") != novo_status_drag
+        ):
+            campos_status_drag = {"status": novo_status_drag}
 
             if (
-                carga_drag
-                and novo_status_drag in colunas_status
-                and carga_drag.get("status") != novo_status_drag
+                novo_status_drag == "Em Trânsito / Viagem Iniciada"
+                and not carga_drag.get("data_hora_saida_real")
             ):
-                campos_status_drag = {"status": novo_status_drag}
+                campos_status_drag["data_hora_saida_real"] = iso_agora_br()
 
-                if (
-                    novo_status_drag == "Em Trânsito / Viagem Iniciada"
-                    and not carga_drag.get("data_hora_saida_real")
-                ):
-                    campos_status_drag["data_hora_saida_real"] = iso_agora_br()
+            if novo_status_drag == "Entregue / Concluído":
+                campos_status_drag["data_conclusao"] = str(hoje_br())
+                if not carga_drag.get("data_hora_entrega_real"):
+                    campos_status_drag["data_hora_entrega_real"] = iso_agora_br()
 
-                if novo_status_drag == "Entregue / Concluído":
-                    campos_status_drag["data_conclusao"] = str(hoje_br())
-                    if not carga_drag.get("data_hora_entrega_real"):
-                        campos_status_drag["data_hora_entrega_real"] = iso_agora_br()
+            sucesso_drag = atualizar_campos_documento(
+                "cargas",
+                carga_id_drag,
+                campos_status_drag,
+            )
 
-                sucesso_drag = atualizar_campos_documento(
-                    "cargas",
-                    carga_id_drag,
-                    campos_status_drag,
+            if sucesso_drag:
+                carga_drag.update(campos_status_drag)
+                st.session_state[f"editando_{carga_id_drag}"] = False
+                st.toast(
+                    f"Carga #{carga_id_drag} movida para {novo_status_drag}.",
+                    icon="✅",
                 )
+                st.rerun()
 
-                if sucesso_drag:
-                    carga_drag.update(campos_status_drag)
-                    st.session_state[f"editando_{carga_id_drag}"] = False
-                    st.toast(
-                        f"Carga #{carga_id_drag} movida para {novo_status_drag}.",
-                        icon="✅",
-                    )
-                    st.rerun()
-
-    # Widget invisível usado como ponte JS -> Streamlit.
-    st.text_input(
-        "drag_payload_interno",
-        key="_drag_payload",
-        label_visibility="collapsed",
-    )
-
-    st.caption("↔️ Arraste uma carga e solte em outra coluna para alterar o status.")
+    st.caption("↔️ Clique, segure e arraste a carga para outra coluna.")
 
     paleta_cores = ["#58a6ff", "#3fb950", "#d29922", "#bc8cff", "#f85149", "#39c5bb", "#f0883e", "#db61a2"]
     mapa_cores = {mot: paleta_cores[i % len(paleta_cores)] for i, mot in enumerate(motoristas_lista)}
@@ -1751,50 +1724,28 @@ elif menu == "📋 Torre de Controle":
 
 
 
-    # Ativa o drag-and-drop nos cartões que já foram renderizados no DOM.
+    # Ativa drag-and-drop no DOM da página principal.
     components.html(
         """
         <script>
         (() => {
             const doc = window.parent.document;
-            const STATE_KEY = "__logisticaKanbanDragBound";
+            const win = window.parent;
 
-            function nativeSetValue(input, value) {
-                const proto = window.parent.HTMLInputElement.prototype;
-                const setter = Object.getOwnPropertyDescriptor(proto, "value")?.set;
-                if (setter) {
-                    setter.call(input, value);
-                } else {
-                    input.value = value;
-                }
+            function statusLimpo(valor) {
+                return (valor || "").trim();
             }
 
-            function enviarMovimentacao(cargaId, novoStatus) {
-                const input = doc.querySelector('input[aria-label="drag_payload_interno"]');
-                if (!input) return false;
+            function moverCarga(cargaId, novoStatus) {
+                if (!cargaId || !novoStatus) return;
 
-                input.focus();
-                nativeSetValue(input, `${cargaId}|||${novoStatus}`);
-                input.dispatchEvent(new Event("input", { bubbles: true }));
-                input.dispatchEvent(new Event("change", { bubbles: true }));
+                const url = new URL(win.location.href);
+                url.searchParams.set("mover_carga", cargaId);
+                url.searchParams.set("mover_status", novoStatus);
 
-                // O Enter confirma o text_input e força o rerun do Streamlit.
-                input.dispatchEvent(new KeyboardEvent("keydown", {
-                    key: "Enter",
-                    code: "Enter",
-                    keyCode: 13,
-                    which: 13,
-                    bubbles: true
-                }));
-                input.dispatchEvent(new KeyboardEvent("keyup", {
-                    key: "Enter",
-                    code: "Enter",
-                    keyCode: 13,
-                    which: 13,
-                    bubbles: true
-                }));
-                input.blur();
-                return true;
+                // Reload real da aplicação. O Python lê os parâmetros e
+                // atualiza o Firebase antes de renderizar novamente.
+                win.location.assign(url.toString());
             }
 
             function prepararKanban() {
@@ -1803,97 +1754,120 @@ elif menu == "📋 Torre de Controle":
 
                 if (!cards.length || !headers.length) return false;
 
-                // Marca cada coluna do Streamlit como destino de drop.
-                const zones = [];
                 headers.forEach((header) => {
                     const column = header.closest('[data-testid="column"]');
                     if (!column) return;
 
-                    column.dataset.kanbanStatus = header.dataset.kanbanStatus;
+                    const status = statusLimpo(header.dataset.kanbanStatus);
+                    if (!status) return;
+
+                    column.dataset.kanbanStatus = status;
                     column.classList.add("kanban-dropzone");
 
-                    if (!column.dataset.dragBound) {
-                        column.dataset.dragBound = "1";
+                    if (column.dataset.dragBound === "1") return;
+                    column.dataset.dragBound = "1";
 
-                        column.addEventListener("dragover", (ev) => {
-                            ev.preventDefault();
-                            ev.dataTransfer.dropEffect = "move";
-                            column.classList.add("kanban-drop-active");
-                        });
+                    column.addEventListener("dragover", (event) => {
+                        event.preventDefault();
+                        event.stopPropagation();
+                        if (event.dataTransfer) {
+                            event.dataTransfer.dropEffect = "move";
+                        }
+                        column.classList.add("kanban-drop-active");
+                    });
 
-                        column.addEventListener("dragenter", (ev) => {
-                            ev.preventDefault();
-                            column.classList.add("kanban-drop-active");
-                        });
+                    column.addEventListener("dragenter", (event) => {
+                        event.preventDefault();
+                        event.stopPropagation();
+                        column.classList.add("kanban-drop-active");
+                    });
 
-                        column.addEventListener("dragleave", (ev) => {
-                            if (!column.contains(ev.relatedTarget)) {
-                                column.classList.remove("kanban-drop-active");
-                            }
-                        });
-
-                        column.addEventListener("drop", (ev) => {
-                            ev.preventDefault();
+                    column.addEventListener("dragleave", (event) => {
+                        const related = event.relatedTarget;
+                        if (!related || !column.contains(related)) {
                             column.classList.remove("kanban-drop-active");
+                        }
+                    });
 
-                            const cargaId =
-                                ev.dataTransfer.getData("text/carga-id") ||
-                                ev.dataTransfer.getData("text/plain");
+                    column.addEventListener("drop", (event) => {
+                        event.preventDefault();
+                        event.stopPropagation();
 
-                            const statusOrigem =
-                                ev.dataTransfer.getData("text/status-origem");
+                        const cargaId =
+                            event.dataTransfer?.getData("application/x-carga-id") ||
+                            event.dataTransfer?.getData("text/plain") ||
+                            "";
 
-                            const novoStatus = column.dataset.kanbanStatus;
+                        const statusOrigem =
+                            event.dataTransfer?.getData("application/x-status-origem") ||
+                            "";
 
-                            doc.querySelectorAll(".kanban-drop-active").forEach((el) => {
-                                el.classList.remove("kanban-drop-active");
-                            });
+                        const novoStatus = statusLimpo(column.dataset.kanbanStatus);
 
-                            doc.querySelectorAll(".dragging-card").forEach((el) => {
-                                el.classList.remove("dragging-card");
-                            });
-
-                            if (!cargaId || !novoStatus || novoStatus === statusOrigem) {
-                                return;
-                            }
-
-                            enviarMovimentacao(cargaId, novoStatus);
+                        doc.querySelectorAll(".kanban-drop-active").forEach((el) => {
+                            el.classList.remove("kanban-drop-active");
                         });
-                    }
 
-                    zones.push(column);
+                        doc.querySelectorAll(".dragging-card").forEach((el) => {
+                            el.classList.remove("dragging-card");
+                            el.style.opacity = "";
+                        });
+
+                        if (
+                            !cargaId ||
+                            !novoStatus ||
+                            statusLimpo(statusOrigem) === novoStatus
+                        ) {
+                            return;
+                        }
+
+                        moverCarga(cargaId, novoStatus);
+                    });
                 });
 
                 cards.forEach((card) => {
                     card.setAttribute("draggable", "true");
 
-                    if (!card.dataset.dragBound) {
-                        card.dataset.dragBound = "1";
+                    if (card.dataset.dragBound === "1") return;
+                    card.dataset.dragBound = "1";
 
-                        card.addEventListener("dragstart", (ev) => {
-                            const cargaId = card.dataset.cargaId || "";
-                            const statusOrigem = card.dataset.currentStatus || "";
+                    card.addEventListener("dragstart", (event) => {
+                        const cargaId = card.dataset.cargaId || "";
+                        const statusOrigem = statusLimpo(card.dataset.currentStatus);
 
-                            card.classList.add("dragging-card");
-                            ev.dataTransfer.effectAllowed = "move";
-                            ev.dataTransfer.setData("text/plain", cargaId);
-                            ev.dataTransfer.setData("text/carga-id", cargaId);
-                            ev.dataTransfer.setData("text/status-origem", statusOrigem);
+                        if (!cargaId || !event.dataTransfer) {
+                            event.preventDefault();
+                            return;
+                        }
+
+                        card.classList.add("dragging-card");
+                        event.dataTransfer.effectAllowed = "move";
+                        event.dataTransfer.setData("text/plain", cargaId);
+                        event.dataTransfer.setData("application/x-carga-id", cargaId);
+                        event.dataTransfer.setData("application/x-status-origem", statusOrigem);
+
+                        setTimeout(() => {
+                            card.style.opacity = "0.45";
+                        }, 0);
+                    });
+
+                    card.addEventListener("dragend", () => {
+                        card.style.opacity = "";
+                        card.classList.remove("dragging-card");
+
+                        doc.querySelectorAll(".kanban-drop-active").forEach((el) => {
+                            el.classList.remove("kanban-drop-active");
                         });
-
-                        card.addEventListener("dragend", () => {
-                            card.classList.remove("dragging-card");
-                            doc.querySelectorAll(".kanban-drop-active").forEach((el) => {
-                                el.classList.remove("kanban-drop-active");
-                            });
-                        });
-                    }
+                    });
                 });
 
-                // Identifica os popovers de seta que vêm logo após os cards.
+                // Marca apenas os popovers que usam a seta ›.
                 doc.querySelectorAll('div[data-testid="stPopover"]').forEach((popover) => {
                     const button = popover.querySelector(":scope > button");
-                    if (button && button.textContent.trim() === "›") {
+                    if (!button) return;
+
+                    const label = (button.textContent || "").trim();
+                    if (label === "›" || label === ">") {
                         popover.classList.add("card-arrow-popover");
                     }
                 });
@@ -1904,11 +1878,23 @@ elif menu == "📋 Torre de Controle":
             let tentativas = 0;
             const timer = setInterval(() => {
                 tentativas += 1;
-                const pronto = prepararKanban();
-                if (pronto || tentativas > 20) {
+                prepararKanban();
+
+                if (tentativas >= 40) {
                     clearInterval(timer);
                 }
             }, 120);
+
+            const observer = new MutationObserver(() => {
+                prepararKanban();
+            });
+
+            observer.observe(doc.body, {
+                childList: true,
+                subtree: true
+            });
+
+            setTimeout(() => observer.disconnect(), 15000);
         })();
         </script>
         """,
