@@ -1247,8 +1247,8 @@ ocorrencias_abertas = [
 # MENU LATERAL FLUTUANTE
 # ============================================================
 
-# Mantém a página selecionada mesmo quando uma ação do cartão
-# precisa recarregar a aplicação.
+# A URL só restaura a página em recarregamentos externos
+# (seta do cartão / drag). Ela NÃO força o menu durante navegação normal.
 pagina_url = st.query_params.get("pagina")
 
 mapa_paginas_url = {
@@ -1260,11 +1260,9 @@ mapa_paginas_url = {
     "cadastros": "👥 Cadastros",
 }
 
-if pagina_url in mapa_paginas_url:
-    pagina_desejada = mapa_paginas_url[pagina_url]
-
-    if st.session_state.get("menu_principal") != pagina_desejada:
-        st.session_state["menu_principal"] = pagina_desejada
+# Só inicializa o menu pela URL quando ainda não existe estado de navegação.
+if "menu_principal" not in st.session_state and pagina_url in mapa_paginas_url:
+    st.session_state["menu_principal"] = mapa_paginas_url[pagina_url]
 
 with st.sidebar:
     st.markdown("""
@@ -1302,10 +1300,8 @@ with st.sidebar:
         "👥 Cadastros": "cadastros",
     }
 
-    pagina_slug = mapa_url_paginas.get(menu)
-
-    if pagina_slug and st.query_params.get("pagina") != pagina_slug:
-        st.query_params["pagina"] = pagina_slug
+    # Guarda a navegação atual sem forçar rerun.
+    st.session_state["_pagina_atual_slug"] = mapa_url_paginas.get(menu, "visao")
 
     st.markdown("---")
     if st.button("↻ Atualizar dados", use_container_width=True):
@@ -1561,9 +1557,10 @@ elif menu == "📋 Torre de Controle":
                         break
 
                 st.session_state[f"editando_{carga_id_drag}"] = False
+                st.session_state["menu_principal"] = "📋 Torre de Controle"
 
                 # Limpa somente os parâmetros do drag.
-                for param in ["mover_carga", "mover_status"]:
+                for param in ["mover_carga", "mover_status", "pagina"]:
                     try:
                         del st.query_params[param]
                     except Exception:
@@ -1582,7 +1579,7 @@ elif menu == "📋 Torre de Controle":
         else:
             # Se a movimentação não é válida ou é para a mesma coluna,
             # limpa os parâmetros sem alterar a carga.
-            for param in ["mover_carga", "mover_status"]:
+            for param in ["mover_carga", "mover_status", "pagina"]:
                 try:
                     del st.query_params[param]
                 except Exception:
@@ -1593,11 +1590,13 @@ elif menu == "📋 Torre de Controle":
     carga_acao_query = st.query_params.get("acao_carga")
     if carga_acao_query:
         st.session_state["_acao_carga_id"] = str(carga_acao_query)
+        st.session_state["menu_principal"] = "📋 Torre de Controle"
 
-        try:
-            del st.query_params["acao_carga"]
-        except Exception:
-            pass
+        for param in ["acao_carga", "pagina"]:
+            try:
+                del st.query_params[param]
+            except Exception:
+                pass
 
 
     paleta_cores = ["#58a6ff", "#3fb950", "#d29922", "#bc8cff", "#f85149", "#39c5bb", "#f0883e", "#db61a2"]
