@@ -402,6 +402,41 @@ footer {visibility: hidden;}
             color:#ffffff !important;
         }
 
+    
+        /* Seta do popover visualmente dentro do canto inferior direito do cartão */
+        div[data-testid="stHorizontalBlock"]:has(div[data-testid="stPopover"]) {
+            height: 0 !important;
+            min-height: 0 !important;
+            margin: 0 !important;
+            padding: 0 !important;
+            position: relative !important;
+            top: -47px !important;
+            z-index: 30 !important;
+            pointer-events: none !important;
+        }
+
+        div[data-testid="stHorizontalBlock"]:has(div[data-testid="stPopover"])
+        div[data-testid="stPopover"] {
+            pointer-events: auto !important;
+            margin-right: 10px !important;
+        }
+
+        div[data-testid="stHorizontalBlock"]:has(div[data-testid="stPopover"])
+        div[data-testid="stPopover"] > button {
+            width: 30px !important;
+            min-width: 30px !important;
+            max-width: 30px !important;
+            height: 30px !important;
+            min-height: 30px !important;
+            border-radius: 7px !important;
+        }
+
+        /* Reserva espaço no cartão para a seta não cobrir a data */
+        .kanban-card {
+            padding-right: 48px !important;
+            padding-bottom: 16px !important;
+        }
+
     </style>
     """,
     unsafe_allow_html=True
