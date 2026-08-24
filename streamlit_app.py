@@ -32,6 +32,13 @@ st.markdown(
     """
     <style>
         #MainMenu {visibility: hidden;}
+        header[data-testid="stHeader"] {
+            background: transparent !important;
+        }
+        [data-testid="stToolbar"] {
+            background: transparent !important;
+        }
+
 
         /* MENU FLUTUANTE: oculto, abre ao passar no botão ☰ */
         section[data-testid="stSidebar"] {
@@ -124,7 +131,7 @@ st.markdown(
             max-width: 1680px !important;
             padding-left: 78px !important;
             padding-right: 28px !important;
-            padding-top: 1.15rem !important;
+            padding-top: 4.6rem !important;
         }
 
         .page-head {
@@ -133,6 +140,8 @@ st.markdown(
             justify-content:space-between;
             gap:16px;
             margin:0 0 20px 0;
+            position:relative;
+            z-index:10;
         }
         .page-title {
             color:#f8fafc;
@@ -283,7 +292,7 @@ st.markdown(
             .attention-row .hide-small {display:none;}
         }
         @media (max-width:768px) {
-            .block-container {padding-left:64px!important;padding-right:12px!important;}
+            .block-container {padding-left:64px!important;padding-right:12px!important;padding-top:4.4rem!important;}
             .kpi-grid {grid-template-columns:repeat(2,1fr);}
             .page-title {font-size:22px;}
             section[data-testid="stSidebar"]:hover::before {left:266px;}
