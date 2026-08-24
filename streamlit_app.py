@@ -261,19 +261,44 @@ st.markdown(
         .card-deadline strong {color:#f8fafc;}
         .badge {padding:3px 6px!important;font-size:8px!important;margin:0!important;}
 
+        /* Ação compacta do cartão: seta encaixada no canto inferior direito */
         div[data-testid="stPopover"] > button {
             border-radius:8px !important;
-            border:1px solid #29384c !important;
-            background:#121a27 !important;
-            min-height:30px !important;
-            height:30px !important;
-            padding:0 8px !important;
-            color:#94a3b8 !important;
+            border:1px solid #304158 !important;
+            background:#151f2d !important;
+            min-height:32px !important;
+            height:32px !important;
+            width:32px !important;
+            min-width:32px !important;
+            padding:0 !important;
+            color:#cbd5e1 !important;
+            font-size:20px !important;
+            font-weight:700 !important;
+            line-height:1 !important;
+            box-shadow:0 4px 12px rgba(0,0,0,.18) !important;
         }
+
         div[data-testid="stPopover"] > button:hover {
             border-color:#3b82f6 !important;
-            background:#18263a !important;
-            color:#f8fafc !important;
+            background:#1a2a40 !important;
+            color:#ffffff !important;
+            transform:translateX(2px);
+        }
+
+        /* Puxa o botão para dentro da área visual do cartão */
+        div[data-testid="stPopover"] {
+            margin-top:-50px !important;
+            margin-right:8px !important;
+            position:relative !important;
+            z-index:20 !important;
+        }
+
+        /* Evita que a linha da seta crie espaço vertical extra */
+        .card-action-row {
+            height:0;
+            min-height:0;
+            margin:0;
+            padding:0;
         }
 
         .section-caption {color:#f1f5f9;font-size:15px;font-weight:850;margin:10px 0 9px;}
@@ -1444,14 +1469,16 @@ elif menu == "📋 Torre de Controle":
                     """)
 
                     # ==================================================
-                    # MENU DE AÇÕES DO CARTÃO
+                    # SETA DE AÇÕES DO CARTÃO
                     # ==================================================
-                    col_espaco, col_acoes = st.columns([6, 1.15])
+                    st.markdown('<div class="card-action-row"></div>', unsafe_allow_html=True)
+                    col_espaco, col_acoes = st.columns([9, 1])
 
                     with col_acoes:
                         if hasattr(st, "popover"):
-                            with st.popover("•••", use_container_width=True):
-                                st.caption(f"Planejamento #{carga_id}")
+                            with st.popover("›"):
+                                st.markdown(f"**Planejamento #{carga_id}**")
+                                st.caption("Ações da carga")
 
                                 novo_status_selecionado = st.selectbox(
                                     "Mover para",
@@ -1488,7 +1515,7 @@ elif menu == "📋 Torre de Controle":
                                     st.session_state[f"confirmar_exclusao_{carga_id}"] = True
                                     st.rerun()
                         else:
-                            if st.button("⚙️", key=f"btn_edit_{carga_id}", help="Editar carga", use_container_width=True):
+                            if st.button("›", key=f"btn_edit_{carga_id}", help="Abrir ações da carga"):
                                 st.session_state[f"editando_{carga_id}"] = not st.session_state.get(f"editando_{carga_id}", False)
 
                     # Confirmação de exclusão
