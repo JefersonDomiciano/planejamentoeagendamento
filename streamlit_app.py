@@ -2,6 +2,7 @@ import datetime
 import io
 import json
 import os
+from zoneinfo import ZoneInfo
 import requests
 import pandas as pd
 import streamlit as st
@@ -135,6 +136,29 @@ FIREBASE_PROJECT_ID = "logistica-d6c14"
 # ============================================================
 # FUNÇÕES AUXILIARES E CACHE
 # ============================================================
+
+FUSO_BRASIL = ZoneInfo("America/Sao_Paulo")
+
+def agora_br():
+    return datetime.datetime.now(FUSO_BRASIL)
+
+def hoje_br():
+    return agora_br().date()
+
+def iso_agora_br():
+    return agora_br().isoformat(timespec="seconds")
+
+def converter_para_datetime(valor):
+    if not valor:
+        return None
+    try:
+        texto = str(valor).replace("Z", "+00:00")
+        dt = datetime.datetime.fromisoformat(texto)
+        if dt.tzinfo is None:
+            dt = dt.replace(tzinfo=FUSO_BRASIL)
+        return dt.astimezone(FUSO_BRASIL)
+    except Exception:
+        return None
 
 def formatar_data_br(data_str):
     if not data_str or str(data_str).lower() in ["nan", "none", ""]:
@@ -465,8 +489,10 @@ def atualizar_dados():
     st.session_state["cargas"] = carregar_colecao("cargas")
     st.session_state["motoristas"] = carregar_colecao("motoristas")
     st.session_state["ajudantes"] = carregar_colecao("ajudantes")
+    st.session_state["veiculos"] = carregar_colecao("veiculos")
+    st.session_state["ocorrencias"] = carregar_colecao("ocorrencias")
 
-    st.session_state["ultima_atualizacao"] = datetime.datetime.now().strftime(
+    st.session_state["ultima_atualizacao"] = agora_br().strftime(
         "%d/%m/%Y %H:%M:%S"
     )
 
@@ -484,7 +510,7 @@ def carga_atrasada(carga):
     if not data_entrega:
         return False
 
-    return data_entrega < datetime.date.today()
+    return data_entrega < hoje_br()
 
 
 def carga_saida_hoje(carga):
@@ -495,7 +521,7 @@ def carga_saida_hoje(carga):
     if not data_saida:
         return False
 
-    return data_saida == datetime.date.today()
+    return data_saida == hoje_br()
 
 
 def carga_entrega_hoje(carga):
@@ -506,7 +532,7 @@ def carga_entrega_hoje(carga):
     if not data_entrega:
         return False
 
-    return data_entrega == datetime.date.today()
+    return data_entrega == hoje_br()
 
 
 def dias_para_entrega(carga):
@@ -517,7 +543,7 @@ def dias_para_entrega(carga):
     if not data_entrega:
         return None
 
-    return (data_entrega - datetime.date.today()).days
+    return (data_entrega - hoje_br()).days
 
 
 def texto_prazo(carga):
@@ -546,6 +572,64 @@ def texto_prazo(carga):
     return f"🟢 {dias} dias para entrega"
 
 
+def carga_em_risco(carga):
+    if carga.get("status") == "Entregue / Concluído":
+        return False
+    dias = dias_para_entrega(carga)
+    if dias is None or dias < 0:
+        return False
+    status = carga.get("status", "")
+    # Entrega hoje e ainda não saiu, ou entrega amanhã e ainda aguarda carregamento.
+    if dias == 0 and status in ["Aguardando Carregamento", "Carregado / No Pátio"]:
+        return True
+    if dias == 1 and status == "Aguardando Carregamento":
+        return True
+    return False
+
+def classificacao_operacional(carga):
+    if carga_atrasada(carga):
+        return "🔴 Atrasada"
+    if carga_em_risco(carga):
+        return "🟠 Risco de atraso"
+    if carga_entrega_hoje(carga):
+        return "🟡 Entrega hoje"
+    return "🟢 No prazo"
+
+def intervalos_sobrepostos(inicio_a, fim_a, inicio_b, fim_b):
+    return inicio_a <= fim_b and inicio_b <= fim_a
+
+def conflitos_alocacao(cargas, motorista, veiculo, data_saida, data_entrega, ignorar_id=None):
+    conflitos = []
+    for c in cargas:
+        if ignorar_id is not None and str(c.get("id")) == str(ignorar_id):
+            continue
+        if c.get("status") == "Entregue / Concluído":
+            continue
+        inicio = converter_para_data(c.get("data_saida"))
+        fim = converter_para_data(c.get("data_entrega")) or inicio
+        if not inicio or not fim:
+            continue
+        if intervalos_sobrepostos(data_saida, data_entrega, inicio, fim):
+            if motorista and c.get("motorista") == motorista:
+                conflitos.append(f"Motorista {motorista} já está no planejamento #{c.get('id')} ({formatar_data_br(c.get('data_saida'))} a {formatar_data_br(c.get('data_entrega'))}).")
+            if veiculo and c.get("veiculo") == veiculo:
+                conflitos.append(f"Veículo {veiculo} já está no planejamento #{c.get('id')} ({formatar_data_br(c.get('data_saida'))} a {formatar_data_br(c.get('data_entrega'))}).")
+    return conflitos
+
+def entrega_no_prazo(carga):
+    previsto = converter_para_data(carga.get("data_entrega"))
+    real_dt = converter_para_datetime(carga.get("data_hora_entrega_real"))
+    if not previsto or not real_dt:
+        return None
+    return real_dt.date() <= previsto
+
+def calcular_otd(cargas):
+    avaliadas = [entrega_no_prazo(c) for c in cargas]
+    avaliadas = [x for x in avaliadas if x is not None]
+    if not avaliadas:
+        return 0.0, 0
+    return (sum(1 for x in avaliadas if x) / len(avaliadas)) * 100, len(avaliadas)
+
 def preparar_dataframe(cargas_lista):
     df = pd.DataFrame(cargas_lista)
 
@@ -572,12 +656,15 @@ def preparar_dataframe(cargas_lista):
     colunas_desejadas = [
         "id",
         "motorista",
+        "veiculo",
         "destino",
         "observacoes",
         "ajudantes",
         "data_carga",
         "data_saida",
         "data_entrega",
+        "data_hora_saida_real",
+        "data_hora_entrega_real",
         "status"
     ]
 
@@ -614,19 +701,23 @@ def gerar_excel_profissional(df):
         bottom=Side(style="thin", color="D9D9D9")
     )
 
-    headers = [
-        "ID Planejamento",
-        "Motorista",
-        "Destino",
-        "Observações",
-        "Ajudantes",
-        "Data Carga",
-        "Data Saída",
-        "Data Entrega",
-        "Status"
-    ]
+    mapa_headers = {
+        "id": "ID Planejamento",
+        "motorista": "Motorista",
+        "veiculo": "Veículo",
+        "destino": "Destino",
+        "observacoes": "Observações",
+        "ajudantes": "Ajudantes",
+        "data_carga": "Data Carga",
+        "data_saida": "Data Saída Prevista",
+        "data_entrega": "Data Entrega Prevista",
+        "data_hora_saida_real": "Saída Real",
+        "data_hora_entrega_real": "Entrega Real",
+        "status": "Status",
+    }
+    headers = [mapa_headers.get(col, col) for col in df.columns]
 
-    for col_num, header in enumerate(headers[:len(df.columns)], 1):
+    for col_num, header in enumerate(headers, 1):
         cell = ws.cell(row=1, column=col_num)
         cell.value = header
         cell.font = header_font
@@ -670,32 +761,41 @@ def gerar_pdf(df):
     pdf.cell(277, 8, txt="Relatório de Cargas", ln=True, align="C")
 
     pdf.set_font("Arial", "", 9)
-    pdf.cell(277, 5, txt=f"Data de geração: {datetime.date.today().strftime('%d/%m/%Y')}", ln=True, align="C")
+    pdf.cell(277, 5, txt=f"Data de geração: {hoje_br().strftime('%d/%m/%Y')}", ln=True, align="C")
     pdf.ln(4)
 
-    pdf.set_font("Arial", "B", 9)
+    pdf.set_font("Arial", "B", 8)
     pdf.set_fill_color(47, 117, 181)
     pdf.set_text_color(255, 255, 255)
 
-    larguras = [25, 40, 50, 45, 28, 28, 28, 33]
-    nomes_colunas = ["ID", "Motorista", "Destino", "Ajudantes", "Carga", "Saída", "Entrega", "Status"]
+    colunas = [
+        ("id", "ID", 20),
+        ("motorista", "Motorista", 35),
+        ("veiculo", "Veículo", 25),
+        ("destino", "Destino", 45),
+        ("data_saida", "Saída Prev.", 27),
+        ("data_entrega", "Entrega Prev.", 27),
+        ("status", "Status", 42),
+        ("data_hora_entrega_real", "Entrega Real", 40),
+    ]
 
-    for i, nome in enumerate(nomes_colunas):
-        pdf.cell(larguras[i], 7, nome, 1, 0, "C", True)
-
+    for _, nome, largura in colunas:
+        pdf.cell(largura, 7, nome, 1, 0, "C", True)
     pdf.ln()
-    pdf.set_font("Arial", "", 8)
+    pdf.set_font("Arial", "", 7)
     pdf.set_text_color(0, 0, 0)
 
     for _, row in df.iterrows():
-        pdf.cell(larguras[0], 6, str(row.get("id", "")), 1, 0, "C")
-        pdf.cell(larguras[1], 6, str(row.get("motorista", ""))[:22], 1, 0, "L")
-        pdf.cell(larguras[2], 6, str(row.get("destino", ""))[:30], 1, 0, "L")
-        pdf.cell(larguras[3], 6, str(row.get("ajudantes", ""))[:25], 1, 0, "L")
-        pdf.cell(larguras[4], 6, str(row.get("data_carga", "")), 1, 0, "C")
-        pdf.cell(larguras[5], 6, str(row.get("data_saida", "")), 1, 0, "C")
-        pdf.cell(larguras[6], 6, str(row.get("data_entrega", "")), 1, 0, "C")
-        pdf.cell(larguras[7], 6, str(row.get("status", ""))[:18], 1, 0, "C")
+        for chave, _, largura in colunas:
+            valor = str(row.get(chave, "") or "")
+            if chave in ["motorista", "destino", "status"]:
+                limite = 26 if chave == "destino" else 22
+                valor = valor[:limite]
+                alinhamento = "L"
+            else:
+                valor = valor[:22]
+                alinhamento = "C"
+            pdf.cell(largura, 6, valor, 1, 0, alinhamento)
         pdf.ln()
 
     return pdf.output(dest="S").encode("latin-1")
@@ -713,6 +813,12 @@ if "motoristas" not in st.session_state:
 
 if "ajudantes" not in st.session_state:
     st.session_state["ajudantes"] = carregar_colecao("ajudantes")
+
+if "veiculos" not in st.session_state:
+    st.session_state["veiculos"] = carregar_colecao("veiculos")
+
+if "ocorrencias" not in st.session_state:
+    st.session_state["ocorrencias"] = carregar_colecao("ocorrencias")
 
 
 # ============================================================
@@ -739,6 +845,12 @@ if not motoristas_lista:
 if not ajudantes_lista:
     ajudantes_lista = ["Pedrinho", "Lucas Souza"]
 
+veiculos_lista = [
+    v.get("placa", "")
+    for v in st.session_state["veiculos"]
+    if v.get("placa") and v.get("ativo", True)
+]
+
 
 # ============================================================
 # MENU
@@ -749,7 +861,8 @@ menu = st.radio(
     [
         "📋 Painel (Kanban)",
         "➕ Nova Carga",
-        "👥 Cadastros (Equipe)",
+        "👥 Cadastros (Equipe/Frota)",
+        "🚨 Ocorrências",
         "📈 Relatórios",
     ],
     horizontal=True,
@@ -782,7 +895,7 @@ if menu == "📋 Painel (Kanban)":
 
     st.subheader("📊 Torre de Controle da Operação")
 
-    hoje = datetime.date.today()
+    hoje = hoje_br()
     total_cargas = len(cargas_lista)
 
     total_aguardando = sum(1 for c in cargas_lista if c.get("status") == "Aguardando Carregamento")
@@ -792,6 +905,8 @@ if menu == "📋 Painel (Kanban)":
     total_atrasadas = sum(1 for c in cargas_lista if carga_atrasada(c))
     total_saida_hoje = sum(1 for c in cargas_lista if carga_saida_hoje(c))
     total_entrega_hoje = sum(1 for c in cargas_lista if carga_entrega_hoje(c))
+    total_risco = sum(1 for c in cargas_lista if carga_em_risco(c))
+    ocorrencias_abertas = [o for o in st.session_state.get("ocorrencias", []) if o.get("status", "Aberta") == "Aberta"]
 
     # INDICADORES
     m1, m2, m3, m4, m5 = st.columns(5)
@@ -865,7 +980,21 @@ if menu == "📋 Painel (Kanban)":
             </div>
             """, unsafe_allow_html=True)
 
-    if total_atrasadas == 0 and total_saida_hoje == 0 and total_entrega_hoje == 0 and total_cargas > 0:
+    if total_risco > 0:
+        st.markdown(f"""
+            <div class="alert-box alert-yellow">
+                ⚠️ <b>Risco operacional:</b> <b>{total_risco}</b> carga(s) podem atrasar se não houver ação.
+            </div>
+            """, unsafe_allow_html=True)
+
+    if ocorrencias_abertas:
+        st.markdown(f"""
+            <div class="alert-box alert-red">
+                🚨 <b>Ocorrências abertas:</b> <b>{len(ocorrencias_abertas)}</b> ocorrência(s) aguardam tratamento.
+            </div>
+            """, unsafe_allow_html=True)
+
+    if total_atrasadas == 0 and total_saida_hoje == 0 and total_entrega_hoje == 0 and total_risco == 0 and not ocorrencias_abertas and total_cargas > 0:
         st.markdown("""
             <div class="alert-box alert-green">
                 🟢 <b>Operação normal:</b> nenhuma carga atrasada ou com alerta para hoje.
@@ -931,6 +1060,7 @@ if menu == "📋 Painel (Kanban)":
             for carga in cargas_status_filtradas:
                 carga_id = carga.get("id")
                 motorista_atual = carga.get("motorista", "")
+                veiculo_atual = carga.get("veiculo", "")
                 cor_motorista = mapa_cores.get(motorista_atual, "#8b949e")
                 saida_br = formatar_data_br(carga.get("data_saida"))
                 entrega_br = formatar_data_br(carga.get("data_entrega"))
@@ -971,6 +1101,7 @@ if menu == "📋 Painel (Kanban)":
                             <div>{badges}</div>
                             <div class="card-id">📌 PLANEJAMENTO #{carga_id}</div>
                             <div class="card-driver">🚚 {motorista_atual}</div>
+                            <div class="card-meta">🚛 Veículo: <strong>{veiculo_atual or 'Não definido'}</strong></div>
                             <div class="card-label">Destino</div>
                             <div class="card-destination">{carga.get('destino', '')}</div>
                             <div class="card-divider"></div>
@@ -996,8 +1127,12 @@ if menu == "📋 Painel (Kanban)":
                         
                         if novo_status_selecionado != status:
                             campos_status = {"status": novo_status_selecionado}
+                            if novo_status_selecionado == "Em Trânsito / Viagem Iniciada" and not carga.get("data_hora_saida_real"):
+                                campos_status["data_hora_saida_real"] = iso_agora_br()
                             if novo_status_selecionado == "Entregue / Concluído":
-                                campos_status["data_conclusao"] = str(datetime.date.today())
+                                campos_status["data_conclusao"] = str(hoje_br())
+                                if not carga.get("data_hora_entrega_real"):
+                                    campos_status["data_hora_entrega_real"] = iso_agora_br()
                             
                             sucesso = atualizar_campos_documento("cargas", carga_id, campos_status)
                             if sucesso:
@@ -1043,6 +1178,10 @@ if menu == "📋 Painel (Kanban)":
                             
                             mot_idx = motoristas_lista.index(carga.get("motorista")) if carga.get("motorista") in motoristas_lista else 0
                             novo_mot = st.selectbox("Motorista", motoristas_lista if motoristas_lista else [""], index=mot_idx)
+                            veic_opcoes = ["Não definido"] + veiculos_lista
+                            veic_atual = carga.get("veiculo", "") or "Não definido"
+                            veic_idx = veic_opcoes.index(veic_atual) if veic_atual in veic_opcoes else 0
+                            novo_veiculo = st.selectbox("Veículo", veic_opcoes, index=veic_idx, key=f"veiculo_{carga_id}")
                             novo_dest = st.text_input("Destino", value=carga.get("destino", ""))
                             novo_obs = st.text_area("Observações / Rota", value=carga.get("observacoes", ""))
                             
@@ -1056,8 +1195,8 @@ if menu == "📋 Painel (Kanban)":
                                 default=[a for a in ajudantes_existentes if a in ajudantes_lista]
                             )
 
-                            dt_saida_val = converter_para_data(carga.get("data_saida")) or datetime.date.today()
-                            dt_ent_val = converter_para_data(carga.get("data_entrega")) or datetime.date.today()
+                            dt_saida_val = converter_para_data(carga.get("data_saida")) or hoje_br()
+                            dt_ent_val = converter_para_data(carga.get("data_entrega")) or hoje_br()
 
                             nova_saida = st.date_input("Data Saída", value=dt_saida_val, key=f"saida_{carga_id}")
                             nova_entrega = st.date_input("Data Entrega", value=dt_ent_val, key=f"entrega_{carga_id}")
@@ -1065,7 +1204,18 @@ if menu == "📋 Painel (Kanban)":
                             salvar_edicao = st.form_submit_button("💾 Salvar Alterações")
 
                             if salvar_edicao:
+                                novo_veiculo_valor = "" if novo_veiculo == "Não definido" else novo_veiculo
+                                conflitos = conflitos_alocacao(cargas_lista, novo_mot, novo_veiculo_valor, nova_saida, nova_entrega, ignorar_id=carga_id)
+                                if nova_entrega < nova_saida:
+                                    st.error("A data de entrega não pode ser anterior à saída.")
+                                    st.stop()
+                                if conflitos:
+                                    st.error("Conflito de programação encontrado:")
+                                    for conflito in conflitos:
+                                        st.warning(conflito)
+                                    st.stop()
                                 carga["motorista"] = novo_mot
+                                carga["veiculo"] = novo_veiculo_valor
                                 carga["destino"] = novo_dest
                                 carga["observacoes"] = novo_obs
                                 carga["ajudantes"] = ajudantes_editados
@@ -1099,6 +1249,7 @@ elif menu == "➕ Nova Carga":
 
         with col1:
             motorista = st.selectbox("Motorista Responsável", motoristas_lista if motoristas_lista else ["Nenhum cadastrado"])
+            veiculo = st.selectbox("Veículo", ["Não definido"] + veiculos_lista)
             destino = st.text_input("Região / Cidades de Destino", placeholder="Ex: Uberaba, Araxá (Múltiplas entregas)")
             observacoes = st.text_area("Observações / Rota", placeholder="Ex: Carga com entregas em lojas diferentes")
 
@@ -1125,13 +1276,22 @@ elif menu == "➕ Nova Carga":
 
             if id_planejamento and destino and motorista:
                 ids_existentes = [str(c.get("id")) for c in cargas_lista]
+                veiculo_valor = "" if veiculo == "Não definido" else veiculo
+                conflitos = conflitos_alocacao(cargas_lista, motorista, veiculo_valor, data_saida, data_entrega)
 
                 if id_planejamento in ids_existentes:
                     st.error(f"Já existe uma carga cadastrada com o ID/Planejamento '{id_planejamento}'.")
+                elif data_entrega < data_saida:
+                    st.error("A data prevista de entrega não pode ser anterior à data de saída.")
+                elif conflitos:
+                    st.error("Conflito de programação encontrado:")
+                    for conflito in conflitos:
+                        st.warning(conflito)
                 else:
                     nova_carga = {
                         "id": id_planejamento,
                         "motorista": motorista,
+                        "veiculo": veiculo_valor,
                         "destino": destino,
                         "observacoes": observacoes,
                         "ajudantes": ajudantes,
@@ -1155,9 +1315,9 @@ elif menu == "➕ Nova Carga":
 # 3. CADASTROS
 # ============================================================
 
-elif menu == "👥 Cadastros (Equipe)":
+elif menu == "👥 Cadastros (Equipe/Frota)":
 
-    st.subheader("👥 Gerenciamento de Motoristas e Ajudantes")
+    st.subheader("👥 Gerenciamento de Equipe e Frota")
     col1, col2 = st.columns(2)
 
     with col1:
@@ -1174,7 +1334,7 @@ elif menu == "👥 Cadastros (Equipe)":
                 if novo_mot.lower() in nomes_existentes:
                     st.error("Este motorista já está cadastrado.")
                 else:
-                    doc_id = f"mot_{int(datetime.datetime.now().timestamp() * 1000)}"
+                    doc_id = f"mot_{int(agora_br().timestamp() * 1000)}"
                     dados_mot = {"id": doc_id, "nome": novo_mot}
                     sucesso = salvar_documento("motoristas", doc_id, dados_mot)
 
@@ -1229,7 +1389,7 @@ elif menu == "👥 Cadastros (Equipe)":
                 if novo_aju.lower() in nomes_existentes:
                     st.error("Este ajudante já está cadastrado.")
                 else:
-                    doc_id = f"aju_{int(datetime.datetime.now().timestamp() * 1000)}"
+                    doc_id = f"aju_{int(agora_br().timestamp() * 1000)}"
                     dados_aju = {"id": doc_id, "nome": novo_aju}
                     sucesso = salvar_documento("ajudantes", doc_id, dados_aju)
 
@@ -1271,8 +1431,80 @@ elif menu == "👥 Cadastros (Equipe)":
                         st.rerun()
 
 
+    st.markdown("---")
+    st.markdown("### 🚛 Frota / Veículos")
+    with st.form("form_cad_veiculo", clear_on_submit=True):
+        fv1, fv2, fv3 = st.columns(3)
+        with fv1:
+            nova_placa = st.text_input("Placa", placeholder="ABC1D23")
+        with fv2:
+            novo_modelo = st.text_input("Modelo", placeholder="Ex: Mercedes Atego 1719")
+        with fv3:
+            capacidade_kg = st.number_input("Capacidade (kg)", min_value=0, step=100)
+        cad_veic_btn = st.form_submit_button("Cadastrar Veículo")
+        if cad_veic_btn and nova_placa:
+            placa = nova_placa.upper().replace("-", "").strip()
+            existentes = [str(v.get("placa", "")).upper().replace("-", "") for v in st.session_state["veiculos"]]
+            if placa in existentes:
+                st.error("Este veículo já está cadastrado.")
+            else:
+                doc_id = f"veic_{placa}"
+                dados = {"id": doc_id, "placa": placa, "modelo": novo_modelo.strip(), "capacidade_kg": int(capacidade_kg), "ativo": True}
+                if salvar_documento("veiculos", doc_id, dados):
+                    st.session_state["veiculos"].append(dados)
+                    st.success(f"Veículo {placa} cadastrado.")
+                    st.rerun()
+
+    if st.session_state["veiculos"]:
+        df_veiculos = pd.DataFrame(st.session_state["veiculos"])
+        cols_v = [c for c in ["placa", "modelo", "capacidade_kg", "ativo"] if c in df_veiculos.columns]
+        st.dataframe(df_veiculos[cols_v], use_container_width=True, hide_index=True)
+
+
 # ============================================================
-# 4. RELATÓRIOS
+# 4. OCORRÊNCIAS
+# ============================================================
+
+elif menu == "🚨 Ocorrências":
+    st.subheader("🚨 Central de Ocorrências")
+    ids_cargas = [str(c.get("id")) for c in cargas_lista]
+    if not ids_cargas:
+        st.info("Cadastre uma carga antes de registrar ocorrências.")
+    else:
+        with st.form("form_ocorrencia", clear_on_submit=True):
+            oc1, oc2 = st.columns(2)
+            with oc1:
+                carga_oc = st.selectbox("Planejamento / Carga", ids_cargas)
+                tipo_oc = st.selectbox("Tipo", ["Atraso no carregamento", "Trânsito", "Pane mecânica", "Pneu", "Cliente fechado", "Endereço incorreto", "Falta de mercadoria", "Avaria", "Recusa", "Reentrega", "Documentação", "Outro"])
+            with oc2:
+                responsavel_oc = st.text_input("Responsável pelo tratamento")
+                prioridade_oc = st.selectbox("Prioridade", ["Baixa", "Média", "Alta", "Crítica"], index=1)
+            descricao_oc = st.text_area("Descrição da ocorrência")
+            if st.form_submit_button("🚨 Abrir Ocorrência", type="primary"):
+                oc_id = f"oc_{int(agora_br().timestamp()*1000)}"
+                dados_oc = {"id": oc_id, "carga_id": carga_oc, "tipo": tipo_oc, "responsavel": responsavel_oc.strip(), "prioridade": prioridade_oc, "descricao": descricao_oc.strip(), "status": "Aberta", "aberta_em": iso_agora_br()}
+                if salvar_documento("ocorrencias", oc_id, dados_oc):
+                    st.session_state["ocorrencias"].append(dados_oc)
+                    st.success("Ocorrência registrada.")
+                    st.rerun()
+
+    abertas = [o for o in st.session_state.get("ocorrencias", []) if o.get("status", "Aberta") == "Aberta"]
+    st.markdown(f"### Abertas ({len(abertas)})")
+    if not abertas:
+        st.success("Nenhuma ocorrência aberta.")
+    for oc in abertas:
+        with st.container(border=True):
+            st.markdown(f"**#{oc.get('carga_id')} · {oc.get('tipo')} · {oc.get('prioridade', 'Média')}**")
+            st.write(oc.get("descricao", ""))
+            st.caption(f"Responsável: {oc.get('responsavel') or 'Não definido'} · Aberta em: {oc.get('aberta_em', '')}")
+            if st.button("✅ Resolver", key=f"resolver_{oc.get('id')}"):
+                if atualizar_campos_documento("ocorrencias", oc.get("id"), {"status": "Resolvida", "resolvida_em": iso_agora_br()}):
+                    oc["status"] = "Resolvida"
+                    st.rerun()
+
+
+# ============================================================
+# 5. RELATÓRIOS
 # ============================================================
 
 elif menu == "📈 Relatórios":
@@ -1324,6 +1556,7 @@ elif menu == "📈 Relatórios":
         transito_relatorio = sum(1 for c in cargas_relatorio if c.get("status") == "Em Trânsito / Viagem Iniciada")
         atrasadas_relatorio = sum(1 for c in cargas_relatorio if carga_atrasada(c))
         percentual_entregues = ((entregues_relatorio / total_relatorio) * 100) if total_relatorio else 0
+        otd_percentual, otd_amostra = calcular_otd(cargas_relatorio)
 
         r1, r2, r3, r4, r5 = st.columns(5)
 
@@ -1366,9 +1599,9 @@ elif menu == "📈 Relatórios":
         with r5:
             st.markdown(f"""
                 <div class="metric-card metric-purple">
-                    <div class="metric-title">CONCLUSÃO</div>
-                    <div class="metric-value">{percentual_entregues:.1f}%</div>
-                    <div class="metric-subtitle">Taxa de entregas</div>
+                    <div class="metric-title">OTD</div>
+                    <div class="metric-value">{otd_percentual:.1f}%</div>
+                    <div class="metric-subtitle">{otd_amostra} entrega(s) com realizado</div>
                 </div>
                 """, unsafe_allow_html=True)
 
