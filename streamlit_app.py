@@ -1247,6 +1247,25 @@ ocorrencias_abertas = [
 # MENU LATERAL FLUTUANTE
 # ============================================================
 
+# Mantém a página selecionada mesmo quando uma ação do cartão
+# precisa recarregar a aplicação.
+pagina_url = st.query_params.get("pagina")
+
+mapa_paginas_url = {
+    "visao": "🏠 Visão Geral",
+    "torre": "📋 Torre de Controle",
+    "nova": "➕ Nova Carga",
+    "ocorrencias": "🚨 Ocorrências",
+    "relatorios": "📈 Relatórios",
+    "cadastros": "👥 Cadastros",
+}
+
+if pagina_url in mapa_paginas_url:
+    pagina_desejada = mapa_paginas_url[pagina_url]
+
+    if st.session_state.get("menu_principal") != pagina_desejada:
+        st.session_state["menu_principal"] = pagina_desejada
+
 with st.sidebar:
     st.markdown("""
         <div style="padding:4px 4px 15px;white-space:nowrap;">
@@ -1273,6 +1292,20 @@ with st.sidebar:
         label_visibility="collapsed",
         key="menu_principal",
     )
+
+    mapa_url_paginas = {
+        "🏠 Visão Geral": "visao",
+        "📋 Torre de Controle": "torre",
+        "➕ Nova Carga": "nova",
+        "🚨 Ocorrências": "ocorrencias",
+        "📈 Relatórios": "relatorios",
+        "👥 Cadastros": "cadastros",
+    }
+
+    pagina_slug = mapa_url_paginas.get(menu)
+
+    if pagina_slug and st.query_params.get("pagina") != pagina_slug:
+        st.query_params["pagina"] = pagina_slug
 
     st.markdown("---")
     if st.button("↻ Atualizar dados", use_container_width=True):
@@ -1650,7 +1683,7 @@ elif menu == "📋 Torre de Controle":
                             <div class="card-deadline">Entrega: <strong>{entrega_br or '—'}</strong></div>
                             <a
                                 class="card-inline-arrow"
-                                href="?acao_carga={carga_id}"
+                                href="?pagina=torre&acao_carga={carga_id}"
                                 draggable="false"
                                 title="Abrir ações da carga"
                                 onclick="event.stopPropagation();"
@@ -1880,6 +1913,7 @@ elif menu == "📋 Torre de Controle":
 
                 const url = new URL(win.location.href);
                 url.searchParams.delete("acao_carga");
+                url.searchParams.set("pagina", "torre");
                 url.searchParams.set("mover_carga", cargaId);
                 url.searchParams.set("mover_status", novoStatus);
 
