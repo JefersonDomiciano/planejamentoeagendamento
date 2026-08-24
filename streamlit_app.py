@@ -1247,9 +1247,15 @@ ocorrencias_abertas = [
 # MENU LATERAL FLUTUANTE
 # ============================================================
 
-# A URL só restaura a página em recarregamentos externos
-# (seta do cartão / drag). Ela NÃO força o menu durante navegação normal.
+# ============================================================
+# RESTAURAÇÃO SEGURA DE NAVEGAÇÃO
+# ============================================================
+# Alterações em "menu_principal" acontecem SOMENTE antes do st.radio.
+
 pagina_url = st.query_params.get("pagina")
+acao_carga_url = st.query_params.get("acao_carga")
+mover_carga_url = st.query_params.get("mover_carga")
+mover_status_url = st.query_params.get("mover_status")
 
 mapa_paginas_url = {
     "visao": "🏠 Visão Geral",
@@ -1260,8 +1266,14 @@ mapa_paginas_url = {
     "cadastros": "👥 Cadastros",
 }
 
-# Só inicializa o menu pela URL quando ainda não existe estado de navegação.
-if "menu_principal" not in st.session_state and pagina_url in mapa_paginas_url:
+if acao_carga_url:
+    st.session_state["_acao_carga_id"] = str(acao_carga_url)
+    st.session_state["menu_principal"] = "📋 Torre de Controle"
+
+elif mover_carga_url and mover_status_url:
+    st.session_state["menu_principal"] = "📋 Torre de Controle"
+
+elif "menu_principal" not in st.session_state and pagina_url in mapa_paginas_url:
     st.session_state["menu_principal"] = mapa_paginas_url[pagina_url]
 
 with st.sidebar:
@@ -1325,6 +1337,13 @@ cabecalhos_menu = {
     "📈 Relatórios": ("Relatórios", "Analise desempenho, entregas e indicadores operacionais."),
     "👥 Cadastros": ("Equipe e Frota", "Gerencie motoristas, ajudantes e veículos."),
 }
+
+if st.query_params.get("acao_carga"):
+    for param in ["acao_carga", "pagina"]:
+        try:
+            del st.query_params[param]
+        except Exception:
+            pass
 
 titulo_pagina, subtitulo_pagina = cabecalhos_menu[menu]
 st.markdown(
@@ -1557,7 +1576,6 @@ elif menu == "📋 Torre de Controle":
                         break
 
                 st.session_state[f"editando_{carga_id_drag}"] = False
-                st.session_state["menu_principal"] = "📋 Torre de Controle"
 
                 # Limpa somente os parâmetros do drag.
                 for param in ["mover_carga", "mover_status", "pagina"]:
@@ -1586,18 +1604,6 @@ elif menu == "📋 Torre de Controle":
                     pass
 
     st.caption("↔️ Clique, segure e arraste a carga para outra coluna.")
-
-    carga_acao_query = st.query_params.get("acao_carga")
-    if carga_acao_query:
-        st.session_state["_acao_carga_id"] = str(carga_acao_query)
-        st.session_state["menu_principal"] = "📋 Torre de Controle"
-
-        for param in ["acao_carga", "pagina"]:
-            try:
-                del st.query_params[param]
-            except Exception:
-                pass
-
 
     paleta_cores = ["#58a6ff", "#3fb950", "#d29922", "#bc8cff", "#f85149", "#39c5bb", "#f0883e", "#db61a2"]
     mapa_cores = {mot: paleta_cores[i % len(paleta_cores)] for i, mot in enumerate(motoristas_lista)}
@@ -1682,7 +1688,7 @@ elif menu == "📋 Torre de Controle":
                             <div class="card-deadline">Entrega: <strong>{entrega_br or '—'}</strong></div>
                             <a
                                 class="card-inline-arrow"
-                                href="?pagina=torre&acao_carga={carga_id}"
+                                href="?acao_carga={carga_id}&pagina=torre"
                                 draggable="false"
                                 title="Abrir ações da carga"
                                 onclick="event.stopPropagation();"
