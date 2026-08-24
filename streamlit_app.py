@@ -418,48 +418,55 @@ footer {visibility: hidden;}
             color: #bfdbfe !important;
             border-bottom-color: #3b82f6 !important;
         }
-
-
-        /* Seta visualmente DENTRO do canto inferior direito do cartão */
-        div[data-testid="stPopover"].card-arrow-popover {
-            width:30px !important;
-            height:30px !important;
-            margin-left:auto !important;
-            margin-right:12px !important;
-            margin-top:-49px !important;
-            margin-bottom:18px !important;
-            position:relative !important;
-            z-index:40 !important;
+/* Seta integrada ao próprio HTML do cartão */
+        .kanban-card {
+            position: relative !important;
+            padding-right: 46px !important;
+            padding-bottom: 16px !important;
         }
 
-        div[data-testid="stPopover"].card-arrow-popover > button {
-            width:30px !important;
-            min-width:30px !important;
-            max-width:30px !important;
-            height:30px !important;
-            min-height:30px !important;
-            padding:0 !important;
-            border-radius:7px !important;
-            border:1px solid #304158 !important;
-            background:#162131 !important;
-            color:#cbd5e1 !important;
-            font-size:19px !important;
-            font-weight:750 !important;
-            line-height:1 !important;
-            box-shadow:0 3px 10px rgba(0,0,0,.20) !important;
+        .card-inline-arrow {
+            position: absolute;
+            right: 10px;
+            bottom: 10px;
+            width: 30px;
+            height: 30px;
+            border-radius: 7px;
+            border: 1px solid #304158;
+            background: #162131;
+            color: #cbd5e1 !important;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 19px;
+            font-weight: 800;
+            line-height: 1;
+            text-decoration: none !important;
+            cursor: pointer;
+            z-index: 5;
+            transition: .15s ease;
         }
 
-        div[data-testid="stPopover"].card-arrow-popover > button:hover {
-            background:#1a2a40 !important;
-            border-color:#3b82f6 !important;
-            color:#ffffff !important;
+        .card-inline-arrow:hover {
+            background: #1a2a40;
+            border-color: #3b82f6;
+            color: #ffffff !important;
+            transform: translateX(1px);
         }
 
-        .card-action-row {
-            height:0 !important;
-            min-height:0 !important;
-            margin:0 !important;
-            padding:0 !important;
+        /* O cartão pode ser arrastado, mas a seta continua clicável */
+        .card-inline-arrow {
+            -webkit-user-drag: none;
+        }
+
+        .kanban-card.dragging-card {
+            opacity: .42 !important;
+            transform: scale(.985) !important;
+        }
+
+        .kanban-drop-active {
+            background: rgba(59,130,246,.07) !important;
+            box-shadow: inset 0 0 0 1px rgba(96,165,250,.35) !important;
         }
 
     </style>
@@ -1465,8 +1472,6 @@ elif menu == "📋 Torre de Controle":
     # ============================================================
     # MOVIMENTAÇÃO POR ARRASTAR E SOLTAR
     # ============================================================
-    # O JavaScript envia a carga/status pela URL. Isso força um reload real
-    # da página e funciona de forma mais confiável no Streamlit Cloud.
     carga_id_drag = st.query_params.get("mover_carga")
     novo_status_drag = st.query_params.get("mover_status")
 
@@ -1475,17 +1480,6 @@ elif menu == "📋 Torre de Controle":
             (c for c in cargas_lista if str(c.get("id")) == str(carga_id_drag)),
             None,
         )
-
-        # Remove os parâmetros da URL antes de atualizar/rerodar.
-        try:
-            del st.query_params["mover_carga"]
-        except Exception:
-            pass
-
-        try:
-            del st.query_params["mover_status"]
-        except Exception:
-            pass
 
         if (
             carga_drag
@@ -1513,14 +1507,46 @@ elif menu == "📋 Torre de Controle":
 
             if sucesso_drag:
                 carga_drag.update(campos_status_drag)
+
+                # Atualiza também a lista da sessão para a mudança aparecer
+                # imediatamente na coluna correta.
+                for item in st.session_state["cargas"]:
+                    if str(item.get("id")) == str(carga_id_drag):
+                        item.update(campos_status_drag)
+                        break
+
                 st.session_state[f"editando_{carga_id_drag}"] = False
+
+                # Só limpa a URL DEPOIS de salvar no Firebase.
+                try:
+                    st.query_params.clear()
+                except Exception:
+                    pass
+
                 st.toast(
                     f"Carga #{carga_id_drag} movida para {novo_status_drag}.",
                     icon="✅",
                 )
                 st.rerun()
 
+        else:
+            # Se a movimentação não é válida ou é para a mesma coluna,
+            # limpa os parâmetros sem alterar a carga.
+            try:
+                st.query_params.clear()
+            except Exception:
+                pass
+
     st.caption("↔️ Clique, segure e arraste a carga para outra coluna.")
+
+    carga_acao_id = st.query_params.get("acao_carga")
+    if carga_acao_id:
+        st.session_state["_acao_carga_id"] = str(carga_acao_id)
+        try:
+            del st.query_params["acao_carga"]
+        except Exception:
+            pass
+
 
     paleta_cores = ["#58a6ff", "#3fb950", "#d29922", "#bc8cff", "#f85149", "#39c5bb", "#f0883e", "#db61a2"]
     mapa_cores = {mot: paleta_cores[i % len(paleta_cores)] for i, mot in enumerate(motoristas_lista)}
@@ -1603,46 +1629,56 @@ elif menu == "📋 Torre de Controle":
                             <div class="card-destination">{carga.get('destino', '') or 'Sem destino'}</div>
                             <div class="card-meta">👤 {motorista_atual or 'Sem motorista'} &nbsp; 🚛 {veiculo_atual or 'Sem veículo'}</div>
                             <div class="card-deadline">Entrega: <strong>{entrega_br or '—'}</strong></div>
+                            <a
+                                class="card-inline-arrow"
+                                href="?acao_carga={carga_id}"
+                                draggable="false"
+                                title="Abrir ações da carga"
+                                onclick="event.stopPropagation();"
+                            >›</a>
                         </div>
                     """)
 
                     # ==================================================
-                    # SETA DE AÇÕES DO CARTÃO
-                    # Status agora é alterado arrastando o cartão.
+                    # AÇÕES DA CARGA SELECIONADA PELA SETA DO CARTÃO
                     # ==================================================
-                    if hasattr(st, "popover"):
-                        with st.popover("›"):
-                            st.markdown(f"**Planejamento #{carga_id}**")
-                            st.caption("Ações da carga")
+                    if st.session_state.get("_acao_carga_id") == str(carga_id):
+                        with st.container(border=True):
+                            ac1, ac2, ac3 = st.columns([3, 1, 1])
+
+                            with ac1:
+                                st.caption(f"Ações do planejamento #{carga_id}")
+
+                            with ac2:
+                                if st.button(
+                                    "✏️ Editar",
+                                    key=f"btn_edit_{carga_id}",
+                                    use_container_width=True,
+                                ):
+                                    st.session_state[f"editando_{carga_id}"] = not st.session_state.get(
+                                        f"editando_{carga_id}",
+                                        False,
+                                    )
+                                    st.session_state["_acao_carga_id"] = None
+                                    st.rerun()
+
+                            with ac3:
+                                if st.button(
+                                    "🗑️ Excluir",
+                                    key=f"btn_del_{carga_id}",
+                                    use_container_width=True,
+                                ):
+                                    st.session_state[f"confirmar_exclusao_{carga_id}"] = True
+                                    st.session_state["_acao_carga_id"] = None
+                                    st.rerun()
 
                             if st.button(
-                                "✏️ Editar carga",
-                                key=f"btn_edit_{carga_id}",
+                                "Fechar",
+                                key=f"fechar_acoes_{carga_id}",
                                 use_container_width=True,
                             ):
-                                st.session_state[f"editando_{carga_id}"] = not st.session_state.get(
-                                    f"editando_{carga_id}",
-                                    False,
-                                )
+                                st.session_state["_acao_carga_id"] = None
                                 st.rerun()
-
-                            if st.button(
-                                "🗑️ Excluir carga",
-                                key=f"btn_del_{carga_id}",
-                                use_container_width=True,
-                            ):
-                                st.session_state[f"confirmar_exclusao_{carga_id}"] = True
-                                st.rerun()
-                    else:
-                        if st.button(
-                            "›",
-                            key=f"btn_edit_{carga_id}",
-                            help="Abrir ações da carga",
-                        ):
-                            st.session_state[f"editando_{carga_id}"] = not st.session_state.get(
-                                f"editando_{carga_id}",
-                                False,
-                            )
 
                     # Confirmação de exclusão
                     if st.session_state.get(f"confirmar_exclusao_{carga_id}", False):
@@ -1732,127 +1768,133 @@ elif menu == "📋 Torre de Controle":
             const doc = window.parent.document;
             const win = window.parent;
 
-            function statusLimpo(valor) {
-                return (valor || "").trim();
+            function limpar(v) {
+                return (v || "").trim();
             }
 
-            function moverCarga(cargaId, novoStatus) {
-                if (!cargaId || !novoStatus) return;
+            function moverCarga(cargaId, status) {
+                if (!cargaId || !status) return;
 
                 const url = new URL(win.location.href);
+                url.searchParams.delete("acao_carga");
                 url.searchParams.set("mover_carga", cargaId);
-                url.searchParams.set("mover_status", novoStatus);
-
-                // Reload real da aplicação. O Python lê os parâmetros e
-                // atualiza o Firebase antes de renderizar novamente.
-                win.location.assign(url.toString());
+                url.searchParams.set("mover_status", status);
+                win.location.href = url.toString();
             }
 
-            function prepararKanban() {
-                const cards = [...doc.querySelectorAll('.kanban-card[data-carga-id]')];
-                const headers = [...doc.querySelectorAll('.kanban-header[data-kanban-status]')];
+            function preparar() {
+                const headers = [...doc.querySelectorAll(
+                    '.kanban-header[data-kanban-status]'
+                )];
 
-                if (!cards.length || !headers.length) return false;
+                const cards = [...doc.querySelectorAll(
+                    '.kanban-card[data-carga-id]'
+                )];
+
+                if (!headers.length || !cards.length) return;
+
+                const columns = [];
 
                 headers.forEach((header) => {
-                    const column = header.closest('[data-testid="column"]');
-                    if (!column) return;
+                    const col = header.closest('[data-testid="column"]');
+                    if (!col) return;
 
-                    const status = statusLimpo(header.dataset.kanbanStatus);
+                    const status = limpar(header.dataset.kanbanStatus);
                     if (!status) return;
 
-                    column.dataset.kanbanStatus = status;
-                    column.classList.add("kanban-dropzone");
+                    col.dataset.kanbanStatus = status;
+                    col.classList.add("kanban-dropzone");
+                    columns.push(col);
 
-                    if (column.dataset.dragBound === "1") return;
-                    column.dataset.dragBound = "1";
+                    if (col.dataset.dndReady === "1") return;
+                    col.dataset.dndReady = "1";
 
-                    column.addEventListener("dragover", (event) => {
-                        event.preventDefault();
-                        event.stopPropagation();
-                        if (event.dataTransfer) {
-                            event.dataTransfer.dropEffect = "move";
+                    // Capture=true ajuda quando o drop acontece sobre widgets filhos.
+                    col.addEventListener("dragover", (ev) => {
+                        ev.preventDefault();
+                        ev.stopPropagation();
+                        if (ev.dataTransfer) {
+                            ev.dataTransfer.dropEffect = "move";
                         }
-                        column.classList.add("kanban-drop-active");
-                    });
+                        col.classList.add("kanban-drop-active");
+                    }, true);
 
-                    column.addEventListener("dragenter", (event) => {
-                        event.preventDefault();
-                        event.stopPropagation();
-                        column.classList.add("kanban-drop-active");
-                    });
+                    col.addEventListener("dragenter", (ev) => {
+                        ev.preventDefault();
+                        ev.stopPropagation();
+                        col.classList.add("kanban-drop-active");
+                    }, true);
 
-                    column.addEventListener("dragleave", (event) => {
-                        const related = event.relatedTarget;
-                        if (!related || !column.contains(related)) {
-                            column.classList.remove("kanban-drop-active");
+                    col.addEventListener("dragleave", (ev) => {
+                        const rect = col.getBoundingClientRect();
+                        const x = ev.clientX;
+                        const y = ev.clientY;
+
+                        const fora =
+                            x <= rect.left ||
+                            x >= rect.right ||
+                            y <= rect.top ||
+                            y >= rect.bottom;
+
+                        if (fora) {
+                            col.classList.remove("kanban-drop-active");
                         }
-                    });
+                    }, true);
 
-                    column.addEventListener("drop", (event) => {
-                        event.preventDefault();
-                        event.stopPropagation();
+                    col.addEventListener("drop", (ev) => {
+                        ev.preventDefault();
+                        ev.stopPropagation();
 
                         const cargaId =
-                            event.dataTransfer?.getData("application/x-carga-id") ||
-                            event.dataTransfer?.getData("text/plain") ||
-                            "";
+                            ev.dataTransfer?.getData("text/plain") || "";
 
-                        const statusOrigem =
-                            event.dataTransfer?.getData("application/x-status-origem") ||
-                            "";
+                        const origem =
+                            ev.dataTransfer?.getData("application/x-origem") || "";
 
-                        const novoStatus = statusLimpo(column.dataset.kanbanStatus);
+                        const destino = limpar(col.dataset.kanbanStatus);
 
                         doc.querySelectorAll(".kanban-drop-active").forEach((el) => {
                             el.classList.remove("kanban-drop-active");
                         });
 
-                        doc.querySelectorAll(".dragging-card").forEach((el) => {
-                            el.classList.remove("dragging-card");
-                            el.style.opacity = "";
-                        });
-
                         if (
-                            !cargaId ||
-                            !novoStatus ||
-                            statusLimpo(statusOrigem) === novoStatus
+                            cargaId &&
+                            destino &&
+                            limpar(origem) !== destino
                         ) {
-                            return;
+                            moverCarga(cargaId, destino);
                         }
-
-                        moverCarga(cargaId, novoStatus);
-                    });
+                    }, true);
                 });
 
                 cards.forEach((card) => {
                     card.setAttribute("draggable", "true");
 
-                    if (card.dataset.dragBound === "1") return;
-                    card.dataset.dragBound = "1";
+                    if (card.dataset.dndReady === "1") return;
+                    card.dataset.dndReady = "1";
 
-                    card.addEventListener("dragstart", (event) => {
-                        const cargaId = card.dataset.cargaId || "";
-                        const statusOrigem = statusLimpo(card.dataset.currentStatus);
+                    card.addEventListener("dragstart", (ev) => {
+                        // Não começa drag se iniciou pela seta.
+                        if (ev.target?.closest?.(".card-inline-arrow")) {
+                            ev.preventDefault();
+                            return;
+                        }
 
-                        if (!cargaId || !event.dataTransfer) {
-                            event.preventDefault();
+                        const id = card.dataset.cargaId || "";
+                        const origem = limpar(card.dataset.currentStatus);
+
+                        if (!id || !ev.dataTransfer) {
+                            ev.preventDefault();
                             return;
                         }
 
                         card.classList.add("dragging-card");
-                        event.dataTransfer.effectAllowed = "move";
-                        event.dataTransfer.setData("text/plain", cargaId);
-                        event.dataTransfer.setData("application/x-carga-id", cargaId);
-                        event.dataTransfer.setData("application/x-status-origem", statusOrigem);
-
-                        setTimeout(() => {
-                            card.style.opacity = "0.45";
-                        }, 0);
+                        ev.dataTransfer.effectAllowed = "move";
+                        ev.dataTransfer.setData("text/plain", id);
+                        ev.dataTransfer.setData("application/x-origem", origem);
                     });
 
                     card.addEventListener("dragend", () => {
-                        card.style.opacity = "";
                         card.classList.remove("dragging-card");
 
                         doc.querySelectorAll(".kanban-drop-active").forEach((el) => {
@@ -1860,41 +1902,19 @@ elif menu == "📋 Torre de Controle":
                         });
                     });
                 });
-
-                // Marca apenas os popovers que usam a seta ›.
-                doc.querySelectorAll('div[data-testid="stPopover"]').forEach((popover) => {
-                    const button = popover.querySelector(":scope > button");
-                    if (!button) return;
-
-                    const label = (button.textContent || "").trim();
-                    if (label === "›" || label === ">") {
-                        popover.classList.add("card-arrow-popover");
-                    }
-                });
-
-                return true;
             }
 
-            let tentativas = 0;
+            let loops = 0;
             const timer = setInterval(() => {
-                tentativas += 1;
-                prepararKanban();
+                loops += 1;
+                preparar();
+                if (loops >= 50) clearInterval(timer);
+            }, 100);
 
-                if (tentativas >= 40) {
-                    clearInterval(timer);
-                }
-            }, 120);
+            const observer = new MutationObserver(preparar);
+            observer.observe(doc.body, {childList:true, subtree:true});
 
-            const observer = new MutationObserver(() => {
-                prepararKanban();
-            });
-
-            observer.observe(doc.body, {
-                childList: true,
-                subtree: true
-            });
-
-            setTimeout(() => observer.disconnect(), 15000);
+            setTimeout(() => observer.disconnect(), 20000);
         })();
         </script>
         """,
