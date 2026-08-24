@@ -20,7 +20,7 @@ st.set_page_config(
     page_title="Gestão de Cargas - Logística",
     page_icon="🚚",
     layout="wide",
-    initial_sidebar_state="collapsed",
+    initial_sidebar_state="expanded",
 )
 
 
@@ -32,6 +32,21 @@ st.markdown(
     """
     <style>
         #MainMenu {visibility: hidden;}
+        section[data-testid="stSidebar"] {
+            border-right: 1px solid #263449;
+        }
+        section[data-testid="stSidebar"] > div {
+            background: linear-gradient(180deg,#111827 0%,#0d1420 100%);
+        }
+        section[data-testid="stSidebar"] div[role="radiogroup"] label {
+            border-radius: 9px;
+            padding: 7px 8px;
+            margin-bottom: 2px;
+        }
+        section[data-testid="stSidebar"] div[role="radiogroup"] label:hover {
+            background: rgba(59,130,246,.08);
+        }
+
         footer {visibility: hidden;}
         .block-container {padding-top: 1.2rem; padding-bottom: 2rem; max-width: 1500px;}
 
@@ -853,47 +868,88 @@ veiculos_lista = [
 
 
 # ============================================================
-# MENU
+# MENU LATERAL
 # ============================================================
 
-menu = st.radio(
-    "Menu Principal",
-    [
-        "📋 Painel (Kanban)",
-        "➕ Nova Carga",
-        "👥 Cadastros (Equipe/Frota)",
-        "🚨 Ocorrências",
-        "📈 Relatórios",
-    ],
-    horizontal=True,
-)
+with st.sidebar:
+    st.markdown("""
+        <div style="padding:8px 2px 14px 2px;">
+            <div style="font-size:11px;color:#718198;font-weight:800;letter-spacing:1.2px;">
+                GESTÃO LOGÍSTICA
+            </div>
+            <div style="font-size:21px;color:#f8fafc;font-weight:850;margin-top:4px;">
+                🚚 Central Operacional
+            </div>
+            <div style="font-size:11px;color:#8796aa;margin-top:4px;">
+                Navegação da operação
+            </div>
+        </div>
+    """, unsafe_allow_html=True)
 
+    st.markdown("##### OPERAÇÃO")
+    menu = st.radio(
+        "Navegação",
+        [
+            "📋 Torre de Controle",
+            "➕ Nova Carga",
+            "🚨 Ocorrências",
+            "📈 Relatórios",
+            "👥 Cadastros",
+        ],
+        label_visibility="collapsed",
+        key="menu_principal",
+    )
 
-# ============================================================
-# BARRA DE ATUALIZAÇÃO
-# ============================================================
+    st.markdown("---")
 
-col_atualizacao1, col_atualizacao2 = st.columns([6, 1])
-
-with col_atualizacao1:
-    if "ultima_atualizacao" in st.session_state:
-        st.caption(f"🕐 Última atualização: {st.session_state['ultima_atualizacao']}")
-
-with col_atualizacao2:
-    if st.button("🔄 Atualizar", use_container_width=True):
+    if st.button("🔄 Atualizar dados", use_container_width=True):
         atualizar_dados()
         st.rerun()
 
-st.markdown("---")
+    if "ultima_atualizacao" in st.session_state:
+        st.caption(f"🕐 {st.session_state['ultima_atualizacao']}")
+    else:
+        st.caption("🟢 Sistema operacional")
+
+    st.markdown("""
+        <div style="margin-top:18px;padding:10px 12px;border:1px solid #263449;
+                    border-radius:10px;background:#111827;">
+            <div style="font-size:10px;color:#718198;font-weight:700;">STATUS</div>
+            <div style="font-size:11px;color:#86efac;margin-top:4px;">● Sistema online</div>
+        </div>
+    """, unsafe_allow_html=True)
+
+
+# ============================================================
+# CABEÇALHO DA ÁREA DE TRABALHO
+# ============================================================
+
+cabecalhos_menu = {
+    "📋 Torre de Controle": ("Torre de Controle", "Acompanhe cargas, prazos e movimentações da operação."),
+    "➕ Nova Carga": ("Nova Carga", "Cadastre e programe um novo planejamento de transporte."),
+    "🚨 Ocorrências": ("Central de Ocorrências", "Registre e acompanhe desvios que exigem atenção."),
+    "📈 Relatórios": ("Relatórios", "Analise desempenho, entregas e indicadores operacionais."),
+    "👥 Cadastros": ("Equipe e Frota", "Gerencie motoristas, ajudantes e veículos."),
+}
+
+titulo_pagina, subtitulo_pagina = cabecalhos_menu[menu]
+st.markdown(
+    f"""
+    <div style="margin:2px 0 16px 0;">
+        <div style="font-size:22px;font-weight:850;color:#f8fafc;">{titulo_pagina}</div>
+        <div style="font-size:12px;color:#8796aa;margin-top:3px;">{subtitulo_pagina}</div>
+    </div>
+    """,
+    unsafe_allow_html=True,
+)
 
 
 # ============================================================
 # 1. PAINEL KANBAN
 # ============================================================
 
-if menu == "📋 Painel (Kanban)":
+if menu == "📋 Torre de Controle":
 
-    st.subheader("📊 Torre de Controle da Operação")
 
     hoje = hoje_br()
     total_cargas = len(cargas_lista)
@@ -1236,7 +1292,6 @@ if menu == "📋 Painel (Kanban)":
 
 elif menu == "➕ Nova Carga":
 
-    st.subheader("➕ Cadastrar Novo Agendamento de Carga")
     st.info("📌 O número do planejamento é fornecido pelo seu sistema de montagem de cargas. Digite exatamente o número recebido.")
 
     with st.form("form_nova_carga"):
@@ -1315,9 +1370,8 @@ elif menu == "➕ Nova Carga":
 # 3. CADASTROS
 # ============================================================
 
-elif menu == "👥 Cadastros (Equipe/Frota)":
+elif menu == "👥 Cadastros":
 
-    st.subheader("👥 Gerenciamento de Equipe e Frota")
     col1, col2 = st.columns(2)
 
     with col1:
@@ -1466,7 +1520,6 @@ elif menu == "👥 Cadastros (Equipe/Frota)":
 # ============================================================
 
 elif menu == "🚨 Ocorrências":
-    st.subheader("🚨 Central de Ocorrências")
     ids_cargas = [str(c.get("id")) for c in cargas_lista]
     if not ids_cargas:
         st.info("Cadastre uma carga antes de registrar ocorrências.")
@@ -1509,7 +1562,6 @@ elif menu == "🚨 Ocorrências":
 
 elif menu == "📈 Relatórios":
 
-    st.subheader("📈 Relatórios e Exportação de Dados")
 
     if not cargas_lista:
         st.info("Nenhuma carga cadastrada para gerar relatórios.")
