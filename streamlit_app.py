@@ -6,6 +6,7 @@ from zoneinfo import ZoneInfo
 import requests
 import pandas as pd
 import streamlit as st
+import streamlit.components.v1 as components
 from fpdf import FPDF
 import openpyxl
 from openpyxl.styles import Font, Alignment, PatternFill, Border, Side
@@ -391,6 +392,103 @@ footer {visibility: hidden;}
             .block-container{padding-left:.65rem;padding-right:.65rem;padding-top:.6rem;}
             .app-title{font-size:22px;} .metric-card{min-height:96px;padding:13px;} .metric-value{font-size:24px;} .kanban-header{font-size:11px;padding:10px;}
         }
+    
+        /* =====================================================
+           KANBAN DRAG & DROP + SETA DENTRO DO CARTÃO
+           ===================================================== */
+
+        .kanban-card[data-carga-id] {
+            position: relative !important;
+            cursor: grab !important;
+            user-select: none;
+            transition:
+                border-color .15s ease,
+                transform .15s ease,
+                opacity .15s ease,
+                box-shadow .15s ease !important;
+        }
+
+        .kanban-card[data-carga-id]:active {
+            cursor: grabbing !important;
+        }
+
+        .kanban-card.dragging-card {
+            opacity: .45 !important;
+            transform: scale(.985) !important;
+            border-color: #60a5fa !important;
+            box-shadow: 0 0 0 1px rgba(96,165,250,.25) !important;
+        }
+
+        [data-testid="column"].kanban-dropzone {
+            border-radius: 12px;
+            transition: background .15s ease, box-shadow .15s ease;
+        }
+
+        [data-testid="column"].kanban-drop-active {
+            background: rgba(59,130,246,.055) !important;
+            box-shadow: inset 0 0 0 1px rgba(96,165,250,.24) !important;
+        }
+
+        [data-testid="column"].kanban-drop-active .kanban-header {
+            color: #bfdbfe !important;
+            border-bottom-color: #3b82f6 !important;
+        }
+
+        /* Campo ponte usado somente para comunicar o drop ao Python */
+        div[data-testid="stTextInput"]:has(input[aria-label="drag_payload_interno"]) {
+            position: absolute !important;
+            width: 1px !important;
+            height: 1px !important;
+            min-height: 1px !important;
+            opacity: 0 !important;
+            overflow: hidden !important;
+            pointer-events: none !important;
+            margin: 0 !important;
+            padding: 0 !important;
+        }
+
+        /* A seta é um controle pequeno sobreposto no canto do card */
+        div[data-testid="stPopover"].card-arrow-popover {
+            width: 32px !important;
+            height: 32px !important;
+            margin-left: auto !important;
+            margin-right: 10px !important;
+            margin-top: -48px !important;
+            margin-bottom: 16px !important;
+            position: relative !important;
+            z-index: 30 !important;
+        }
+
+        div[data-testid="stPopover"].card-arrow-popover > button,
+        div[data-testid="stPopover"] > button {
+            width: 32px !important;
+            min-width: 32px !important;
+            max-width: 32px !important;
+            height: 32px !important;
+            min-height: 32px !important;
+            padding: 0 !important;
+            border-radius: 8px !important;
+            border: 1px solid #304158 !important;
+            background: #162131 !important;
+            color: #cbd5e1 !important;
+            font-size: 20px !important;
+            font-weight: 750 !important;
+            line-height: 1 !important;
+            box-shadow: 0 4px 12px rgba(0,0,0,.16) !important;
+        }
+
+        div[data-testid="stPopover"] > button:hover {
+            background: #1a2a40 !important;
+            border-color: #3b82f6 !important;
+            color: #ffffff !important;
+        }
+
+        /* Não deixa o botão parecer uma linha separada abaixo do cartão */
+        .card-action-row,
+        div[data-testid="stHorizontalBlock"]:has(.card-action-spacer) {
+            min-height: 0 !important;
+        }
+
     </style>
     """,
     unsafe_allow_html=True
@@ -1390,6 +1488,67 @@ elif menu == "📋 Torre de Controle":
         "Entregue / Concluído",
     ]
 
+
+    # ============================================================
+    # MOVIMENTAÇÃO POR ARRASTAR E SOLTAR
+    # ============================================================
+    drag_payload = st.session_state.get("_drag_payload", "")
+
+    if drag_payload:
+        partes_drag = str(drag_payload).split("|||", 1)
+
+        # Limpa antes de recriar o widget nesta execução.
+        st.session_state["_drag_payload"] = ""
+
+        if len(partes_drag) == 2:
+            carga_id_drag, novo_status_drag = partes_drag
+            carga_drag = next(
+                (c for c in cargas_lista if str(c.get("id")) == str(carga_id_drag)),
+                None,
+            )
+
+            if (
+                carga_drag
+                and novo_status_drag in colunas_status
+                and carga_drag.get("status") != novo_status_drag
+            ):
+                campos_status_drag = {"status": novo_status_drag}
+
+                if (
+                    novo_status_drag == "Em Trânsito / Viagem Iniciada"
+                    and not carga_drag.get("data_hora_saida_real")
+                ):
+                    campos_status_drag["data_hora_saida_real"] = iso_agora_br()
+
+                if novo_status_drag == "Entregue / Concluído":
+                    campos_status_drag["data_conclusao"] = str(hoje_br())
+                    if not carga_drag.get("data_hora_entrega_real"):
+                        campos_status_drag["data_hora_entrega_real"] = iso_agora_br()
+
+                sucesso_drag = atualizar_campos_documento(
+                    "cargas",
+                    carga_id_drag,
+                    campos_status_drag,
+                )
+
+                if sucesso_drag:
+                    carga_drag.update(campos_status_drag)
+                    st.session_state[f"editando_{carga_id_drag}"] = False
+                    st.toast(
+                        f"Carga #{carga_id_drag} movida para {novo_status_drag}.",
+                        icon="✅",
+                    )
+                    st.rerun()
+
+    # Widget invisível usado como ponte JS -> Streamlit.
+    st.text_input(
+        "drag_payload_interno",
+        key="_drag_payload",
+        label_visibility="collapsed",
+    )
+
+    st.caption("↔️ Arraste uma carga e solte em outra coluna para alterar o status.")
+
     paleta_cores = ["#58a6ff", "#3fb950", "#d29922", "#bc8cff", "#f85149", "#39c5bb", "#f0883e", "#db61a2"]
     mapa_cores = {mot: paleta_cores[i % len(paleta_cores)] for i, mot in enumerate(motoristas_lista)}
 
@@ -1400,7 +1559,7 @@ elif menu == "📋 Torre de Controle":
         with cols[idx]:
             quantidade_status = sum(1 for c in cargas_filtradas_periodo if c.get("status") == status)
             st.markdown(f"""
-                <div class='kanban-header'>
+                <div class='kanban-header' data-kanban-status="{status}">
                     <div>{status}</div>
                     <div class="kanban-count">{quantidade_status} carga(s)</div>
                 </div>
@@ -1457,7 +1616,13 @@ elif menu == "📋 Torre de Controle":
                         badge_card = ""
 
                     render_html(f"""
-                        <div class="kanban-card" style="border-left:2px solid {cor_borda};">
+                        <div
+                            class="kanban-card"
+                            data-carga-id="{carga_id}"
+                            data-current-status="{status}"
+                            draggable="true"
+                            style="border-left:2px solid {cor_borda};"
+                        >
                             <div class="card-topline">
                                 <div class="card-id">#{carga_id}</div>
                                 <div>{badge_card}</div>
@@ -1470,53 +1635,41 @@ elif menu == "📋 Torre de Controle":
 
                     # ==================================================
                     # SETA DE AÇÕES DO CARTÃO
+                    # Status agora é alterado arrastando o cartão.
                     # ==================================================
-                    st.markdown('<div class="card-action-row"></div>', unsafe_allow_html=True)
-                    col_espaco, col_acoes = st.columns([9, 1])
+                    if hasattr(st, "popover"):
+                        with st.popover("›"):
+                            st.markdown(f"**Planejamento #{carga_id}**")
+                            st.caption("Ações da carga")
 
-                    with col_acoes:
-                        if hasattr(st, "popover"):
-                            with st.popover("›"):
-                                st.markdown(f"**Planejamento #{carga_id}**")
-                                st.caption("Ações da carga")
-
-                                novo_status_selecionado = st.selectbox(
-                                    "Mover para",
-                                    colunas_status,
-                                    index=colunas_status.index(status) if status in colunas_status else 0,
-                                    key=f"select_status_{carga_id}",
+                            if st.button(
+                                "✏️ Editar carga",
+                                key=f"btn_edit_{carga_id}",
+                                use_container_width=True,
+                            ):
+                                st.session_state[f"editando_{carga_id}"] = not st.session_state.get(
+                                    f"editando_{carga_id}",
+                                    False,
                                 )
+                                st.rerun()
 
-                                if novo_status_selecionado != status:
-                                    if st.button("↪ Atualizar status", key=f"mover_{carga_id}", use_container_width=True):
-                                        campos_status = {"status": novo_status_selecionado}
-
-                                        if novo_status_selecionado == "Em Trânsito / Viagem Iniciada" and not carga.get("data_hora_saida_real"):
-                                            campos_status["data_hora_saida_real"] = iso_agora_br()
-
-                                        if novo_status_selecionado == "Entregue / Concluído":
-                                            campos_status["data_conclusao"] = str(hoje_br())
-                                            if not carga.get("data_hora_entrega_real"):
-                                                campos_status["data_hora_entrega_real"] = iso_agora_br()
-
-                                        sucesso = atualizar_campos_documento("cargas", carga_id, campos_status)
-                                        if sucesso:
-                                            carga.update(campos_status)
-                                            st.session_state[f"editando_{carga_id}"] = False
-                                            st.rerun()
-
-                                st.markdown("---")
-
-                                if st.button("✏️ Editar carga", key=f"btn_edit_{carga_id}", use_container_width=True):
-                                    st.session_state[f"editando_{carga_id}"] = not st.session_state.get(f"editando_{carga_id}", False)
-                                    st.rerun()
-
-                                if st.button("🗑️ Excluir carga", key=f"btn_del_{carga_id}", use_container_width=True):
-                                    st.session_state[f"confirmar_exclusao_{carga_id}"] = True
-                                    st.rerun()
-                        else:
-                            if st.button("›", key=f"btn_edit_{carga_id}", help="Abrir ações da carga"):
-                                st.session_state[f"editando_{carga_id}"] = not st.session_state.get(f"editando_{carga_id}", False)
+                            if st.button(
+                                "🗑️ Excluir carga",
+                                key=f"btn_del_{carga_id}",
+                                use_container_width=True,
+                            ):
+                                st.session_state[f"confirmar_exclusao_{carga_id}"] = True
+                                st.rerun()
+                    else:
+                        if st.button(
+                            "›",
+                            key=f"btn_edit_{carga_id}",
+                            help="Abrir ações da carga",
+                        ):
+                            st.session_state[f"editando_{carga_id}"] = not st.session_state.get(
+                                f"editando_{carga_id}",
+                                False,
+                            )
 
                     # Confirmação de exclusão
                     if st.session_state.get(f"confirmar_exclusao_{carga_id}", False):
@@ -1595,6 +1748,173 @@ elif menu == "📋 Torre de Controle":
                                     st.session_state[f"editando_{carga_id}"] = False
                                     st.success("Carga atualizada com sucesso!")
                                     st.rerun()
+
+
+
+    # Ativa o drag-and-drop nos cartões que já foram renderizados no DOM.
+    components.html(
+        """
+        <script>
+        (() => {
+            const doc = window.parent.document;
+            const STATE_KEY = "__logisticaKanbanDragBound";
+
+            function nativeSetValue(input, value) {
+                const proto = window.parent.HTMLInputElement.prototype;
+                const setter = Object.getOwnPropertyDescriptor(proto, "value")?.set;
+                if (setter) {
+                    setter.call(input, value);
+                } else {
+                    input.value = value;
+                }
+            }
+
+            function enviarMovimentacao(cargaId, novoStatus) {
+                const input = doc.querySelector('input[aria-label="drag_payload_interno"]');
+                if (!input) return false;
+
+                input.focus();
+                nativeSetValue(input, `${cargaId}|||${novoStatus}`);
+                input.dispatchEvent(new Event("input", { bubbles: true }));
+                input.dispatchEvent(new Event("change", { bubbles: true }));
+
+                // O Enter confirma o text_input e força o rerun do Streamlit.
+                input.dispatchEvent(new KeyboardEvent("keydown", {
+                    key: "Enter",
+                    code: "Enter",
+                    keyCode: 13,
+                    which: 13,
+                    bubbles: true
+                }));
+                input.dispatchEvent(new KeyboardEvent("keyup", {
+                    key: "Enter",
+                    code: "Enter",
+                    keyCode: 13,
+                    which: 13,
+                    bubbles: true
+                }));
+                input.blur();
+                return true;
+            }
+
+            function prepararKanban() {
+                const cards = [...doc.querySelectorAll('.kanban-card[data-carga-id]')];
+                const headers = [...doc.querySelectorAll('.kanban-header[data-kanban-status]')];
+
+                if (!cards.length || !headers.length) return false;
+
+                // Marca cada coluna do Streamlit como destino de drop.
+                const zones = [];
+                headers.forEach((header) => {
+                    const column = header.closest('[data-testid="column"]');
+                    if (!column) return;
+
+                    column.dataset.kanbanStatus = header.dataset.kanbanStatus;
+                    column.classList.add("kanban-dropzone");
+
+                    if (!column.dataset.dragBound) {
+                        column.dataset.dragBound = "1";
+
+                        column.addEventListener("dragover", (ev) => {
+                            ev.preventDefault();
+                            ev.dataTransfer.dropEffect = "move";
+                            column.classList.add("kanban-drop-active");
+                        });
+
+                        column.addEventListener("dragenter", (ev) => {
+                            ev.preventDefault();
+                            column.classList.add("kanban-drop-active");
+                        });
+
+                        column.addEventListener("dragleave", (ev) => {
+                            if (!column.contains(ev.relatedTarget)) {
+                                column.classList.remove("kanban-drop-active");
+                            }
+                        });
+
+                        column.addEventListener("drop", (ev) => {
+                            ev.preventDefault();
+                            column.classList.remove("kanban-drop-active");
+
+                            const cargaId =
+                                ev.dataTransfer.getData("text/carga-id") ||
+                                ev.dataTransfer.getData("text/plain");
+
+                            const statusOrigem =
+                                ev.dataTransfer.getData("text/status-origem");
+
+                            const novoStatus = column.dataset.kanbanStatus;
+
+                            doc.querySelectorAll(".kanban-drop-active").forEach((el) => {
+                                el.classList.remove("kanban-drop-active");
+                            });
+
+                            doc.querySelectorAll(".dragging-card").forEach((el) => {
+                                el.classList.remove("dragging-card");
+                            });
+
+                            if (!cargaId || !novoStatus || novoStatus === statusOrigem) {
+                                return;
+                            }
+
+                            enviarMovimentacao(cargaId, novoStatus);
+                        });
+                    }
+
+                    zones.push(column);
+                });
+
+                cards.forEach((card) => {
+                    card.setAttribute("draggable", "true");
+
+                    if (!card.dataset.dragBound) {
+                        card.dataset.dragBound = "1";
+
+                        card.addEventListener("dragstart", (ev) => {
+                            const cargaId = card.dataset.cargaId || "";
+                            const statusOrigem = card.dataset.currentStatus || "";
+
+                            card.classList.add("dragging-card");
+                            ev.dataTransfer.effectAllowed = "move";
+                            ev.dataTransfer.setData("text/plain", cargaId);
+                            ev.dataTransfer.setData("text/carga-id", cargaId);
+                            ev.dataTransfer.setData("text/status-origem", statusOrigem);
+                        });
+
+                        card.addEventListener("dragend", () => {
+                            card.classList.remove("dragging-card");
+                            doc.querySelectorAll(".kanban-drop-active").forEach((el) => {
+                                el.classList.remove("kanban-drop-active");
+                            });
+                        });
+                    }
+                });
+
+                // Identifica os popovers de seta que vêm logo após os cards.
+                doc.querySelectorAll('div[data-testid="stPopover"]').forEach((popover) => {
+                    const button = popover.querySelector(":scope > button");
+                    if (button && button.textContent.trim() === "›") {
+                        popover.classList.add("card-arrow-popover");
+                    }
+                });
+
+                return true;
+            }
+
+            let tentativas = 0;
+            const timer = setInterval(() => {
+                tentativas += 1;
+                const pronto = prepararKanban();
+                if (pronto || tentativas > 20) {
+                    clearInterval(timer);
+                }
+            }, 120);
+        })();
+        </script>
+        """,
+        height=0,
+        width=0,
+    )
 
 
 # ============================================================
