@@ -437,6 +437,59 @@ footer {visibility: hidden;}
             padding-bottom: 16px !important;
         }
 
+    
+        /* V5.2 — seta limpa, sem borda e realmente integrada ao cartão */
+        div[data-testid="stHorizontalBlock"]:has(div[data-testid="stPopover"]) {
+            top: -49px !important;
+        }
+
+        div[data-testid="stHorizontalBlock"]:has(div[data-testid="stPopover"])
+        div[data-testid="stPopover"] {
+            margin-right: 15px !important;
+        }
+
+        div[data-testid="stHorizontalBlock"]:has(div[data-testid="stPopover"])
+        div[data-testid="stPopover"] > button {
+            width: 24px !important;
+            min-width: 24px !important;
+            max-width: 24px !important;
+            height: 24px !important;
+            min-height: 24px !important;
+            padding: 0 !important;
+
+            border: none !important;
+            outline: none !important;
+            box-shadow: none !important;
+            background: transparent !important;
+
+            color: #94a3b8 !important;
+            font-size: 21px !important;
+            font-weight: 700 !important;
+            line-height: 1 !important;
+        }
+
+        div[data-testid="stHorizontalBlock"]:has(div[data-testid="stPopover"])
+        div[data-testid="stPopover"] > button:hover {
+            border: none !important;
+            outline: none !important;
+            box-shadow: none !important;
+            background: transparent !important;
+            color: #ffffff !important;
+            transform: translateX(2px);
+        }
+
+        div[data-testid="stHorizontalBlock"]:has(div[data-testid="stPopover"])
+        div[data-testid="stPopover"] > button:focus {
+            border: none !important;
+            outline: none !important;
+            box-shadow: none !important;
+        }
+
+        /* Menos espaço reservado, já que agora existe apenas a seta */
+        .kanban-card {
+            padding-right: 38px !important;
+        }
+
     </style>
     """,
     unsafe_allow_html=True
