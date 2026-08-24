@@ -32,20 +32,78 @@ st.markdown(
     """
     <style>
         #MainMenu {visibility: hidden;}
+        /* MENU LATERAL HOVER */
         section[data-testid="stSidebar"] {
+            width: 64px !important;
+            min-width: 64px !important;
+            transition: width .22s ease, min-width .22s ease;
+            overflow: hidden !important;
+            z-index: 999;
             border-right: 1px solid #263449;
+            box-shadow: 10px 0 30px rgba(0,0,0,.12);
         }
+
+        section[data-testid="stSidebar"]:hover {
+            width: 285px !important;
+            min-width: 285px !important;
+        }
+
         section[data-testid="stSidebar"] > div {
+            width: 285px !important;
+            min-width: 285px !important;
             background: linear-gradient(180deg,#111827 0%,#0d1420 100%);
+            overflow-x: hidden !important;
         }
+
+        section[data-testid="stSidebar"] [data-testid="stSidebarCollapseButton"] {
+            display:none !important;
+        }
+
+        /* Enquanto recolhido, mostra só os ícones das opções */
+        section[data-testid="stSidebar"]:not(:hover) div[role="radiogroup"] label {
+            width: 42px !important;
+            min-width: 42px !important;
+            overflow: hidden !important;
+            white-space: nowrap !important;
+            padding-left: 8px !important;
+        }
+
+        section[data-testid="stSidebar"]:not(:hover) div[role="radiogroup"] label p {
+            max-width: 28px !important;
+            overflow: hidden !important;
+            white-space: nowrap !important;
+        }
+
         section[data-testid="stSidebar"] div[role="radiogroup"] label {
-            border-radius: 9px;
-            padding: 7px 8px;
-            margin-bottom: 2px;
+            border-radius: 10px;
+            padding: 8px 10px;
+            margin-bottom: 3px;
+            transition: background .15s ease, transform .15s ease;
         }
+
         section[data-testid="stSidebar"] div[role="radiogroup"] label:hover {
-            background: rgba(59,130,246,.08);
+            background: rgba(59,130,246,.10);
+            transform: translateX(2px);
         }
+
+        /* deixa o conteúdo principal com mais área útil */
+        .block-container {
+            max-width: 1600px;
+        }
+
+        /* ações dos cards */
+        div[data-testid="stPopover"] > button {
+            border-radius: 9px !important;
+            border: 1px solid #2b3950 !important;
+            background: #151f2f !important;
+            min-height: 38px !important;
+        }
+
+        div[data-testid="stPopover"] > button:hover {
+            border-color: #3b82f6 !important;
+            background: #18263a !important;
+        }
+
 
         footer {visibility: hidden;}
         .block-container {padding-top: 1.2rem; padding-bottom: 2rem; max-width: 1500px;}
@@ -873,15 +931,12 @@ veiculos_lista = [
 
 with st.sidebar:
     st.markdown("""
-        <div style="padding:8px 2px 14px 2px;">
-            <div style="font-size:11px;color:#718198;font-weight:800;letter-spacing:1.2px;">
+        <div style="padding:8px 2px 12px 2px;white-space:nowrap;">
+            <div style="font-size:21px;color:#f8fafc;font-weight:850;">
+                🚚 <span style="margin-left:5px;">Central Operacional</span>
+            </div>
+            <div style="font-size:10px;color:#718198;font-weight:800;letter-spacing:1.1px;margin-top:5px;">
                 GESTÃO LOGÍSTICA
-            </div>
-            <div style="font-size:21px;color:#f8fafc;font-weight:850;margin-top:4px;">
-                🚚 Central Operacional
-            </div>
-            <div style="font-size:11px;color:#8796aa;margin-top:4px;">
-                Navegação da operação
             </div>
         </div>
     """, unsafe_allow_html=True)
@@ -907,17 +962,9 @@ with st.sidebar:
         st.rerun()
 
     if "ultima_atualizacao" in st.session_state:
-        st.caption(f"🕐 {st.session_state['ultima_atualizacao']}")
-    else:
-        st.caption("🟢 Sistema operacional")
+        st.caption(f"🕐 Atualizado em {st.session_state['ultima_atualizacao']}")
 
-    st.markdown("""
-        <div style="margin-top:18px;padding:10px 12px;border:1px solid #263449;
-                    border-radius:10px;background:#111827;">
-            <div style="font-size:10px;color:#718198;font-weight:700;">STATUS</div>
-            <div style="font-size:11px;color:#86efac;margin-top:4px;">● Sistema online</div>
-        </div>
-    """, unsafe_allow_html=True)
+
 
 
 # ============================================================
@@ -1170,7 +1217,7 @@ if menu == "📋 Torre de Controle":
                     # ==================================================
                     # SELETOR DE STATUS COMPACTO E BOTÕES DE AÇÃO
                     # ==================================================
-                    col_sel_status, col_btn_edit, col_btn_del = st.columns([3, 1, 1])
+                    col_sel_status, col_acoes = st.columns([4, 1.35])
 
                     with col_sel_status:
                         novo_status_selecionado = st.selectbox(
@@ -1198,13 +1245,20 @@ if menu == "📋 Torre de Controle":
                                 st.session_state[f"editando_{carga_id}"] = False
                                 st.rerun()
 
-                    with col_btn_edit:
-                        if st.button("✏️", key=f"btn_edit_{carga_id}", help="Editar Carga", use_container_width=True):
-                            st.session_state[f"editando_{carga_id}"] = not st.session_state.get(f"editando_{carga_id}", False)
+                    with col_acoes:
+                        if hasattr(st, "popover"):
+                            with st.popover("•••", use_container_width=True):
+                                st.caption(f"Planejamento #{carga_id}")
+                                if st.button("✏️ Editar", key=f"btn_edit_{carga_id}", use_container_width=True):
+                                    st.session_state[f"editando_{carga_id}"] = not st.session_state.get(f"editando_{carga_id}", False)
+                                    st.rerun()
 
-                    with col_btn_del:
-                        if st.button("🗑️", key=f"btn_del_{carga_id}", help="Excluir Carga", use_container_width=True):
-                            st.session_state[f"confirmar_exclusao_{carga_id}"] = True
+                                if st.button("🗑️ Excluir", key=f"btn_del_{carga_id}", use_container_width=True):
+                                    st.session_state[f"confirmar_exclusao_{carga_id}"] = True
+                                    st.rerun()
+                        else:
+                            if st.button("⚙️", key=f"btn_edit_{carga_id}", help="Editar carga", use_container_width=True):
+                                st.session_state[f"editando_{carga_id}"] = not st.session_state.get(f"editando_{carga_id}", False)
 
                     # Confirmação de exclusão
                     if st.session_state.get(f"confirmar_exclusao_{carga_id}", False):
