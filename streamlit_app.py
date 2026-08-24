@@ -32,15 +32,49 @@ st.markdown(
     """
     <style>
         #MainMenu {visibility: hidden;}
-        /* MENU LATERAL HOVER */
+
+        /* MENU FLUTUANTE: oculto, abre ao passar no botão ☰ */
         section[data-testid="stSidebar"] {
-            width: 64px !important;
-            min-width: 64px !important;
-            transition: width .22s ease, min-width .22s ease;
-            overflow: hidden !important;
-            z-index: 999;
-            border-right: 1px solid #263449;
-            box-shadow: 10px 0 30px rgba(0,0,0,.12);
+            position: fixed !important;
+            left: 0 !important;
+            top: 0 !important;
+            height: 100vh !important;
+            width: 0 !important;
+            min-width: 0 !important;
+            overflow: visible !important;
+            z-index: 999999 !important;
+            transition: width .24s ease, min-width .24s ease !important;
+            background: transparent !important;
+            border: 0 !important;
+        }
+
+        section[data-testid="stSidebar"]::before {
+            content: "☰";
+            position: fixed;
+            left: 14px;
+            top: 18px;
+            width: 44px;
+            height: 44px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            border-radius: 11px;
+            background: linear-gradient(145deg,#172131,#101827);
+            border: 1px solid #2b3950;
+            color: #60a5fa;
+            font-size: 22px;
+            font-weight: 900;
+            box-shadow: 0 10px 28px rgba(0,0,0,.28);
+            cursor: pointer;
+            transition: all .18s ease;
+        }
+
+        section[data-testid="stSidebar"]:hover::before {
+            left: 296px;
+            background: #18263a;
+            border-color: #3b82f6;
+            color: #dbeafe;
+            content: "‹";
         }
 
         section[data-testid="stSidebar"]:hover {
@@ -48,65 +82,217 @@ st.markdown(
             min-width: 285px !important;
         }
 
-        section[data-testid="stSidebar"] > div {
+        section[data-testid="stSidebar"] > div:first-child {
             width: 285px !important;
             min-width: 285px !important;
-            background: linear-gradient(180deg,#111827 0%,#0d1420 100%);
+            height: 100vh !important;
+            padding-top: 18px !important;
+            background: linear-gradient(180deg,#0d1522 0%,#0a101a 100%) !important;
+            border-right: 1px solid #263449;
+            box-shadow: 18px 0 42px rgba(0,0,0,.30);
+            overflow-y: auto !important;
             overflow-x: hidden !important;
+            transform: translateX(-102%);
+            transition: transform .24s ease !important;
+        }
+
+        section[data-testid="stSidebar"]:hover > div:first-child {
+            transform: translateX(0);
         }
 
         section[data-testid="stSidebar"] [data-testid="stSidebarCollapseButton"] {
-            display:none !important;
-        }
-
-        /* Enquanto recolhido, mostra só os ícones das opções */
-        section[data-testid="stSidebar"]:not(:hover) div[role="radiogroup"] label {
-            width: 42px !important;
-            min-width: 42px !important;
-            overflow: hidden !important;
-            white-space: nowrap !important;
-            padding-left: 8px !important;
-        }
-
-        section[data-testid="stSidebar"]:not(:hover) div[role="radiogroup"] label p {
-            max-width: 28px !important;
-            overflow: hidden !important;
-            white-space: nowrap !important;
+            display: none !important;
         }
 
         section[data-testid="stSidebar"] div[role="radiogroup"] label {
-            border-radius: 10px;
-            padding: 8px 10px;
-            margin-bottom: 3px;
-            transition: background .15s ease, transform .15s ease;
+            border-radius: 9px !important;
+            padding: 8px 10px !important;
+            margin-bottom: 3px !important;
+            transition: background .15s ease, transform .15s ease !important;
         }
 
         section[data-testid="stSidebar"] div[role="radiogroup"] label:hover {
-            background: rgba(59,130,246,.10);
+            background: rgba(59,130,246,.10) !important;
             transform: translateX(2px);
         }
 
-        /* deixa o conteúdo principal com mais área útil */
+        [data-testid="stAppViewContainer"] > .main {
+            margin-left: 0 !important;
+        }
+
         .block-container {
-            max-width: 1600px;
+            max-width: 1680px !important;
+            padding-left: 78px !important;
+            padding-right: 28px !important;
+            padding-top: 1.15rem !important;
         }
 
-        /* ações dos cards */
+        .page-head {
+            display:flex;
+            align-items:flex-start;
+            justify-content:space-between;
+            gap:16px;
+            margin:0 0 20px 0;
+        }
+        .page-title {
+            color:#f8fafc;
+            font-size:27px;
+            font-weight:880;
+            letter-spacing:-.5px;
+            line-height:1.05;
+        }
+        .page-subtitle {color:#8796aa;font-size:12px;margin-top:7px;}
+        .date-chip {
+            border:1px solid #2b3950;
+            background:#141c29;
+            border-radius:9px;
+            padding:9px 12px;
+            color:#cbd5e1;
+            font-size:11px;
+            white-space:nowrap;
+        }
+
+        .kpi-grid {
+            display:grid;
+            grid-template-columns:repeat(7,minmax(115px,1fr));
+            gap:10px;
+            margin:6px 0 18px;
+        }
+        .kpi-card {
+            background:linear-gradient(145deg,#151e2c,#101722);
+            border:1px solid #263449;
+            border-radius:12px;
+            padding:14px 14px 13px;
+            min-height:112px;
+            box-shadow:0 10px 26px rgba(0,0,0,.13);
+        }
+        .kpi-icon {
+            width:32px;height:32px;border-radius:50%;
+            display:flex;align-items:center;justify-content:center;
+            font-size:15px;margin-bottom:10px;
+            background:rgba(59,130,246,.12);
+            border:1px solid rgba(59,130,246,.20);
+        }
+        .kpi-title {color:#a7b3c4;font-size:9px;font-weight:850;letter-spacing:.35px;text-transform:uppercase;}
+        .kpi-value {color:#f8fafc;font-size:24px;font-weight:900;margin-top:5px;line-height:1;}
+        .kpi-sub {color:#718198;font-size:9px;margin-top:7px;}
+
+        .attention-panel {
+            background:linear-gradient(145deg,rgba(36,20,24,.72),rgba(19,20,28,.92));
+            border:1px solid rgba(239,68,68,.20);
+            border-radius:13px;
+            padding:15px 16px 8px;
+            margin-bottom:18px;
+        }
+        .attention-title {
+            color:#fb7185;
+            font-size:12px;
+            font-weight:900;
+            letter-spacing:.3px;
+            padding-bottom:10px;
+            border-bottom:1px solid rgba(148,163,184,.10);
+        }
+        .attention-row {
+            display:grid;
+            grid-template-columns:90px minmax(200px,1.8fr) minmax(120px,1fr) minmax(100px,.9fr) minmax(120px,1fr);
+            gap:12px;
+            align-items:center;
+            padding:10px 6px;
+            border-bottom:1px solid rgba(148,163,184,.08);
+            font-size:10px;
+            color:#cbd5e1;
+        }
+        .attention-row:last-child {border-bottom:0;}
+        .attention-id {font-weight:900;color:#f8fafc;font-size:11px;}
+        .attention-danger {color:#fb7185;font-weight:800;}
+        .attention-warning {color:#f59e0b;font-weight:800;}
+        .attention-empty {padding:18px 6px;color:#86efac;font-size:11px;}
+
+        .kanban-shell {
+            border:1px solid #263449;
+            border-radius:14px;
+            padding:10px;
+            background:rgba(12,18,28,.55);
+            margin-top:8px;
+        }
+        .kanban-header {
+            text-align:left;
+            background:transparent !important;
+            color:#f8fafc!important;
+            padding:10px 8px !important;
+            border-radius:9px !important;
+            font-weight:800;
+            font-size:12px !important;
+            border:0 !important;
+            border-bottom:1px solid #263449 !important;
+            margin-bottom:8px !important;
+            box-shadow:none !important;
+        }
+        .kanban-count {
+            float:right;
+            color:#a5b3c5!important;
+            font-size:10px!important;
+            background:#202a3a;
+            border-radius:999px;
+            padding:2px 7px;
+        }
+        .kanban-card {
+            background:linear-gradient(145deg,#17202e 0%,#121925 100%) !important;
+            border:1px solid #2a3749 !important;
+            border-radius:10px !important;
+            padding:11px 12px !important;
+            margin:0 0 8px 0 !important;
+            box-shadow:none !important;
+        }
+        .card-topline {display:flex;justify-content:space-between;align-items:center;gap:8px;margin-bottom:8px;}
+        .card-id {color:#f8fafc!important;font-size:11px!important;font-weight:900!important;}
+        .card-destination {color:#f8fafc!important;font-size:11px!important;font-weight:750!important;margin:0 0 8px!important;}
+        .card-meta {color:#a5b3c5!important;font-size:9px!important;line-height:1.7!important;}
+        .card-deadline {margin-top:8px;color:#cbd5e1;font-size:9px;}
+        .card-deadline strong {color:#f8fafc;}
+        .badge {padding:3px 6px!important;font-size:8px!important;margin:0!important;}
+
         div[data-testid="stPopover"] > button {
-            border-radius: 9px !important;
-            border: 1px solid #2b3950 !important;
-            background: #151f2f !important;
-            min-height: 38px !important;
+            border-radius:8px !important;
+            border:1px solid #29384c !important;
+            background:#121a27 !important;
+            min-height:30px !important;
+            height:30px !important;
+            padding:0 8px !important;
+            color:#94a3b8 !important;
         }
-
         div[data-testid="stPopover"] > button:hover {
-            border-color: #3b82f6 !important;
-            background: #18263a !important;
+            border-color:#3b82f6 !important;
+            background:#18263a !important;
+            color:#f8fafc !important;
         }
 
+        .section-caption {color:#f1f5f9;font-size:15px;font-weight:850;margin:10px 0 9px;}
+        .app-footer {
+            margin-top:26px;
+            padding:14px 0 6px;
+            border-top:1px solid rgba(148,163,184,.10);
+            text-align:center;
+            color:#64748b;
+            font-size:9px;
+        }
 
-        footer {visibility: hidden;}
-        .block-container {padding-top: 1.2rem; padding-bottom: 2rem; max-width: 1500px;}
+        @media (max-width:1100px) {
+            .kpi-grid {grid-template-columns:repeat(4,1fr);}
+            .attention-row {grid-template-columns:80px 1fr 120px;}
+            .attention-row .hide-small {display:none;}
+        }
+        @media (max-width:768px) {
+            .block-container {padding-left:64px!important;padding-right:12px!important;}
+            .kpi-grid {grid-template-columns:repeat(2,1fr);}
+            .page-title {font-size:22px;}
+            section[data-testid="stSidebar"]:hover::before {left:266px;}
+            section[data-testid="stSidebar"]:hover,
+            section[data-testid="stSidebar"] > div:first-child {width:255px!important;min-width:255px!important;}
+        }
+
+footer {visibility: hidden;}
+        .block-container {padding-bottom: 2rem;}
 
         .app-kicker {color:#8ea0b8; font-size:11px; font-weight:700; text-transform:uppercase; letter-spacing:1.4px; margin-bottom:2px;}
         .app-title {color:#f8fafc; font-size:28px; font-weight:800; letter-spacing:-.5px; margin-bottom:0;}
@@ -185,18 +371,6 @@ def render_html(html):
         st.markdown(html, unsafe_allow_html=True)
 
 
-# ============================================================
-# TÍTULO
-# ============================================================
-
-st.markdown(
-    """
-    <div class="app-kicker">LOGÍSTICA INTELIGENTE</div>
-    <div class="app-title">🚚 Gestão de Cargas</div>
-    <div class="app-subtitle">Torre de controle operacional e acompanhamento de planejamentos</div>
-    """,
-    unsafe_allow_html=True
-)
 
 
 # ============================================================
@@ -926,25 +1100,46 @@ veiculos_lista = [
 
 
 # ============================================================
-# MENU LATERAL
+# RESUMO OPERACIONAL GLOBAL
+# ============================================================
+
+hoje = hoje_br()
+total_cargas = len(cargas_lista)
+total_aguardando = sum(1 for c in cargas_lista if c.get("status") == "Aguardando Carregamento")
+total_patio = sum(1 for c in cargas_lista if c.get("status") == "Carregado / No Pátio")
+total_transito = sum(1 for c in cargas_lista if c.get("status") == "Em Trânsito / Viagem Iniciada")
+total_entregues = sum(1 for c in cargas_lista if c.get("status") == "Entregue / Concluído")
+total_atrasadas = sum(1 for c in cargas_lista if carga_atrasada(c))
+total_saida_hoje = sum(1 for c in cargas_lista if carga_saida_hoje(c))
+total_entrega_hoje = sum(1 for c in cargas_lista if carga_entrega_hoje(c))
+total_risco = sum(1 for c in cargas_lista if carga_em_risco(c))
+ocorrencias_abertas = [
+    o for o in st.session_state.get("ocorrencias", [])
+    if o.get("status", "Aberta") == "Aberta"
+]
+
+
+# ============================================================
+# MENU LATERAL FLUTUANTE
 # ============================================================
 
 with st.sidebar:
     st.markdown("""
-        <div style="padding:8px 2px 12px 2px;white-space:nowrap;">
-            <div style="font-size:21px;color:#f8fafc;font-weight:850;">
-                🚚 <span style="margin-left:5px;">Central Operacional</span>
+        <div style="padding:4px 4px 15px;white-space:nowrap;">
+            <div style="font-size:18px;color:#f8fafc;font-weight:900;">
+                🚚 Gestão de Cargas
             </div>
-            <div style="font-size:10px;color:#718198;font-weight:800;letter-spacing:1.1px;margin-top:5px;">
-                GESTÃO LOGÍSTICA
+            <div style="font-size:9px;color:#718198;font-weight:800;letter-spacing:1.15px;margin:5px 0 14px 30px;">
+                LOGÍSTICA
             </div>
         </div>
     """, unsafe_allow_html=True)
 
-    st.markdown("##### OPERAÇÃO")
+    st.caption("OPERAÇÃO")
     menu = st.radio(
         "Navegação",
         [
+            "🏠 Visão Geral",
             "📋 Torre de Controle",
             "➕ Nova Carga",
             "🚨 Ocorrências",
@@ -956,15 +1151,13 @@ with st.sidebar:
     )
 
     st.markdown("---")
-
-    if st.button("🔄 Atualizar dados", use_container_width=True):
+    if st.button("↻ Atualizar dados", use_container_width=True):
         atualizar_dados()
         st.rerun()
 
     if "ultima_atualizacao" in st.session_state:
-        st.caption(f"🕐 Atualizado em {st.session_state['ultima_atualizacao']}")
-
-
+        st.caption("Última atualização")
+        st.caption(st.session_state["ultima_atualizacao"])
 
 
 # ============================================================
@@ -972,7 +1165,8 @@ with st.sidebar:
 # ============================================================
 
 cabecalhos_menu = {
-    "📋 Torre de Controle": ("Torre de Controle", "Acompanhe cargas, prazos e movimentações da operação."),
+    "🏠 Visão Geral": ("Visão Geral", "Panorama da operação e prioridades do dia."),
+    "📋 Torre de Controle": ("Torre de Controle", "Acompanhe e movimente as cargas da operação."),
     "➕ Nova Carga": ("Nova Carga", "Cadastre e programe um novo planejamento de transporte."),
     "🚨 Ocorrências": ("Central de Ocorrências", "Registre e acompanhe desvios que exigem atenção."),
     "📈 Relatórios": ("Relatórios", "Analise desempenho, entregas e indicadores operacionais."),
@@ -982,9 +1176,12 @@ cabecalhos_menu = {
 titulo_pagina, subtitulo_pagina = cabecalhos_menu[menu]
 st.markdown(
     f"""
-    <div style="margin:2px 0 16px 0;">
-        <div style="font-size:22px;font-weight:850;color:#f8fafc;">{titulo_pagina}</div>
-        <div style="font-size:12px;color:#8796aa;margin-top:3px;">{subtitulo_pagina}</div>
+    <div class="page-head">
+        <div>
+            <div class="page-title">{titulo_pagina}</div>
+            <div class="page-subtitle">{subtitulo_pagina}</div>
+        </div>
+        <div class="date-chip">📅 {hoje_br().strftime('%d/%m/%Y')}</div>
     </div>
     """,
     unsafe_allow_html=True,
@@ -992,120 +1189,137 @@ st.markdown(
 
 
 # ============================================================
+# 0. VISÃO GERAL
+# ============================================================
+
+if menu == "🏠 Visão Geral":
+
+    st.markdown(
+        f"""
+        <div class="kpi-grid">
+            <div class="kpi-card"><div class="kpi-icon">📋</div><div class="kpi-title">Programadas</div><div class="kpi-value">{total_cargas}</div><div class="kpi-sub">Total de cargas</div></div>
+            <div class="kpi-card"><div class="kpi-icon" style="color:#fbbf24;">◷</div><div class="kpi-title">Aguardando</div><div class="kpi-value">{total_aguardando}</div><div class="kpi-sub">Carregamento</div></div>
+            <div class="kpi-card"><div class="kpi-icon" style="color:#c084fc;">⌂</div><div class="kpi-title">No pátio</div><div class="kpi-value">{total_patio}</div><div class="kpi-sub">Carregadas</div></div>
+            <div class="kpi-card"><div class="kpi-icon">🚚</div><div class="kpi-title">Em trânsito</div><div class="kpi-value">{total_transito}</div><div class="kpi-sub">Viagens</div></div>
+            <div class="kpi-card"><div class="kpi-icon" style="color:#4ade80;">✓</div><div class="kpi-title">Entregues</div><div class="kpi-value">{total_entregues}</div><div class="kpi-sub">Concluídas</div></div>
+            <div class="kpi-card"><div class="kpi-icon" style="color:#f59e0b;">⚠</div><div class="kpi-title">Em risco</div><div class="kpi-value">{total_risco}</div><div class="kpi-sub">Atenção</div></div>
+            <div class="kpi-card"><div class="kpi-icon" style="color:#fb7185;">!</div><div class="kpi-title">Atrasadas</div><div class="kpi-value">{total_atrasadas}</div><div class="kpi-sub">Fora do prazo</div></div>
+        </div>
+        """,
+        unsafe_allow_html=True,
+    )
+
+    itens_atencao = []
+    for carga in cargas_lista:
+        if carga_atrasada(carga):
+            itens_atencao.append((0, carga, f"Entrega atrasada {abs(dias_para_entrega(carga) or 0)} dia(s)", "attention-danger"))
+        elif carga_em_risco(carga):
+            mensagem = "Entrega hoje e operação ainda não concluída" if carga_entrega_hoje(carga) else "Risco de atraso"
+            itens_atencao.append((1, carga, mensagem, "attention-warning"))
+        elif carga_saida_hoje(carga) and carga.get("status") == "Aguardando Carregamento":
+            itens_atencao.append((2, carga, "Saída hoje, carregamento não iniciado", "attention-warning"))
+
+    itens_atencao.sort(key=lambda x: x[0])
+
+    linhas_atencao = ""
+    for _, carga, mensagem, classe in itens_atencao[:6]:
+        linhas_atencao += f"""
+        <div class="attention-row">
+            <div class="attention-id">#{carga.get('id','—')}</div>
+            <div class="{classe}">{mensagem}</div>
+            <div>👤 {carga.get('motorista','') or 'Sem motorista'}</div>
+            <div class="hide-small">🚛 {carga.get('veiculo','') or 'Sem veículo'}</div>
+            <div class="hide-small">📍 {carga.get('destino','') or 'Sem destino'}</div>
+        </div>
+        """
+
+    for ocorrencia in ocorrencias_abertas[:3]:
+        descricao = ocorrencia.get("descricao") or ocorrencia.get("tipo") or "Ocorrência aberta"
+        linhas_atencao += f"""
+        <div class="attention-row">
+            <div class="attention-id">#{ocorrencia.get('carga_id','—')}</div>
+            <div class="attention-danger">🚨 {descricao}</div>
+            <div>Ocorrência aberta</div>
+            <div class="hide-small">—</div>
+            <div class="hide-small">Requer tratamento</div>
+        </div>
+        """
+
+    if not linhas_atencao:
+        linhas_atencao = '<div class="attention-empty">✓ Nenhuma carga crítica ou ocorrência aberta neste momento.</div>'
+
+    st.markdown(
+        f"""
+        <div class="attention-panel">
+            <div class="attention-title">⚠ REQUER ATENÇÃO</div>
+            {linhas_atencao}
+        </div>
+        """,
+        unsafe_allow_html=True,
+    )
+
+    st.markdown('<div class="section-caption">Situação das Cargas</div>', unsafe_allow_html=True)
+
+    status_preview = [
+        ("Aguardando Carregamento", "Aguardando Carregamento", "#f59e0b"),
+        ("Carregado / No Pátio", "No Pátio", "#a855f7"),
+        ("Em Trânsito / Viagem Iniciada", "Em Trânsito", "#3b82f6"),
+        ("Entregue / Concluído", "Entregues", "#22c55e"),
+    ]
+
+    preview_cols = st.columns(4)
+    for idx, (status_real, titulo_status, cor) in enumerate(status_preview):
+        cargas_status = [c for c in cargas_lista if c.get("status") == status_real]
+        with preview_cols[idx]:
+            st.markdown(
+                f"""
+                <div class="kanban-header" style="border-left:2px solid {cor}!important;">
+                    {titulo_status}
+                    <span class="kanban-count">{len(cargas_status)}</span>
+                </div>
+                """,
+                unsafe_allow_html=True,
+            )
+            for carga in cargas_status[:3]:
+                if carga_atrasada(carga):
+                    badge = '<span class="badge badge-red">ATRASADA</span>'
+                elif carga_em_risco(carga):
+                    badge = '<span class="badge badge-yellow">RISCO</span>'
+                elif status_real == "Entregue / Concluído":
+                    badge = '<span class="badge badge-green">✓</span>'
+                else:
+                    badge = ""
+
+                entrega_label = "Entregue" if status_real == "Entregue / Concluído" else "Entrega"
+                entrega_valor = formatar_data_br(carga.get("data_entrega")) or "—"
+
+                st.markdown(
+                    f"""
+                    <div class="kanban-card">
+                        <div class="card-topline">
+                            <div class="card-id">#{carga.get('id','')}</div>
+                            <div>{badge}</div>
+                        </div>
+                        <div class="card-destination">{carga.get('destino','') or 'Sem destino'}</div>
+                        <div class="card-meta">👤 {carga.get('motorista','') or 'Sem motorista'} &nbsp; 🚛 {carga.get('veiculo','') or 'Sem veículo'}</div>
+                        <div class="card-deadline">{entrega_label}: <strong>{entrega_valor}</strong></div>
+                    </div>
+                    """,
+                    unsafe_allow_html=True,
+                )
+
+            if len(cargas_status) > 3:
+                st.caption(f"+ {len(cargas_status) - 3} outra(s) carga(s)")
+
+
+# ============================================================
 # 1. PAINEL KANBAN
 # ============================================================
 
-if menu == "📋 Torre de Controle":
-
-
-    hoje = hoje_br()
-    total_cargas = len(cargas_lista)
-
-    total_aguardando = sum(1 for c in cargas_lista if c.get("status") == "Aguardando Carregamento")
-    total_patio = sum(1 for c in cargas_lista if c.get("status") == "Carregado / No Pátio")
-    total_transito = sum(1 for c in cargas_lista if c.get("status") == "Em Trânsito / Viagem Iniciada")
-    total_entregues = sum(1 for c in cargas_lista if c.get("status") == "Entregue / Concluído")
-    total_atrasadas = sum(1 for c in cargas_lista if carga_atrasada(c))
-    total_saida_hoje = sum(1 for c in cargas_lista if carga_saida_hoje(c))
-    total_entrega_hoje = sum(1 for c in cargas_lista if carga_entrega_hoje(c))
-    total_risco = sum(1 for c in cargas_lista if carga_em_risco(c))
-    ocorrencias_abertas = [o for o in st.session_state.get("ocorrencias", []) if o.get("status", "Aberta") == "Aberta"]
-
-    # INDICADORES
-    m1, m2, m3, m4, m5 = st.columns(5)
-
-    with m1:
-        st.markdown(f"""
-            <div class="metric-card metric-blue">
-                <div class="metric-title">TOTAL DE CARGAS</div>
-                <div class="metric-value">{total_cargas}</div>
-                <div class="metric-subtitle">Planejamentos cadastrados</div>
-            </div>
-            """, unsafe_allow_html=True)
-
-    with m2:
-        st.markdown(f"""
-            <div class="metric-card metric-yellow">
-                <div class="metric-title">AGUARDANDO</div>
-                <div class="metric-value">{total_aguardando}</div>
-                <div class="metric-subtitle">Aguardando carregamento</div>
-            </div>
-            """, unsafe_allow_html=True)
-
-    with m3:
-        st.markdown(f"""
-            <div class="metric-card metric-green">
-                <div class="metric-title">EM TRÂNSITO</div>
-                <div class="metric-value">{total_transito}</div>
-                <div class="metric-subtitle">Viagens iniciadas</div>
-            </div>
-            """, unsafe_allow_html=True)
-
-    with m4:
-        st.markdown(f"""
-            <div class="metric-card metric-purple">
-                <div class="metric-title">ENTREGUES</div>
-                <div class="metric-value">{total_entregues}</div>
-                <div class="metric-subtitle">Operações concluídas</div>
-            </div>
-            """, unsafe_allow_html=True)
-
-    with m5:
-        st.markdown(f"""
-            <div class="metric-card metric-red">
-                <div class="metric-title">ATRASADAS</div>
-                <div class="metric-value">{total_atrasadas}</div>
-                <div class="metric-subtitle">Precisam de atenção</div>
-            </div>
-            """, unsafe_allow_html=True)
-
-    st.markdown("")
-
-    # ALERTAS
-    if total_atrasadas > 0:
-        st.markdown(f"""
-            <div class="alert-box alert-red">
-                🔴 <b>Atenção:</b> existem <b>{total_atrasadas}</b> carga(s) com prazo de entrega vencido.
-            </div>
-            """, unsafe_allow_html=True)
-
-    if total_saida_hoje > 0:
-        st.markdown(f"""
-            <div class="alert-box alert-yellow">
-                🟠 <b>Operação de hoje:</b> <b>{total_saida_hoje}</b> carga(s) possuem saída prevista para hoje.
-            </div>
-            """, unsafe_allow_html=True)
-
-    if total_entrega_hoje > 0:
-        st.markdown(f"""
-            <div class="alert-box alert-yellow">
-                📦 <b>Entregas de hoje:</b> <b>{total_entrega_hoje}</b> carga(s) possuem entrega prevista para hoje.
-            </div>
-            """, unsafe_allow_html=True)
-
-    if total_risco > 0:
-        st.markdown(f"""
-            <div class="alert-box alert-yellow">
-                ⚠️ <b>Risco operacional:</b> <b>{total_risco}</b> carga(s) podem atrasar se não houver ação.
-            </div>
-            """, unsafe_allow_html=True)
-
-    if ocorrencias_abertas:
-        st.markdown(f"""
-            <div class="alert-box alert-red">
-                🚨 <b>Ocorrências abertas:</b> <b>{len(ocorrencias_abertas)}</b> ocorrência(s) aguardam tratamento.
-            </div>
-            """, unsafe_allow_html=True)
-
-    if total_atrasadas == 0 and total_saida_hoje == 0 and total_entrega_hoje == 0 and total_risco == 0 and not ocorrencias_abertas and total_cargas > 0:
-        st.markdown("""
-            <div class="alert-box alert-green">
-                🟢 <b>Operação normal:</b> nenhuma carga atrasada ou com alerta para hoje.
-            </div>
-            """, unsafe_allow_html=True)
+elif menu == "📋 Torre de Controle":
 
     # FILTROS
-    st.markdown("### 🔎 Filtros da Operação")
+    st.markdown('<div class="section-caption">Torre de Controle</div>', unsafe_allow_html=True)
     col_f1, col_f2 = st.columns([2, 3])
 
     with col_f1:
@@ -1196,64 +1410,72 @@ if menu == "📋 Torre de Controle":
                         badges += f'<span class="badge badge-blue">{prazo_texto}</span>'
 
                     observacoes = str(carga.get("observacoes", "")).strip()
-                    ajudantes_html = f'<div class="card-meta">👥 Ajudantes: <strong>{ajudantes_texto}</strong></div>' if ajudantes_texto.strip() else ""
-                    observacoes_html = f'<div class="card-meta">📝 Obs.: <strong>{observacoes}</strong></div>' if observacoes else ""
+
+                    if atrasada:
+                        badge_card = '<span class="badge badge-red">ATRASADA</span>'
+                    elif carga_em_risco(carga):
+                        badge_card = '<span class="badge badge-yellow">RISCO</span>'
+                    elif status == "Entregue / Concluído":
+                        badge_card = '<span class="badge badge-green">✓ ENTREGUE</span>'
+                    elif entrega_hoje:
+                        badge_card = '<span class="badge badge-yellow">ENTREGA HOJE</span>'
+                    else:
+                        badge_card = ""
 
                     render_html(f"""
-                        <div class="kanban-card" style="border-left:3px solid {cor_borda};">
-                            <div>{badges}</div>
-                            <div class="card-id">📌 PLANEJAMENTO #{carga_id}</div>
-                            <div class="card-driver">🚚 {motorista_atual}</div>
-                            <div class="card-meta">🚛 Veículo: <strong>{veiculo_atual or 'Não definido'}</strong></div>
-                            <div class="card-label">Destino</div>
-                            <div class="card-destination">{carga.get('destino', '')}</div>
-                            <div class="card-divider"></div>
-                            <div class="card-meta">📅 Saída: <strong>{saida_br or '—'}</strong> &nbsp; • &nbsp; Entrega: <strong>{entrega_br or '—'}</strong></div>
-                            {ajudantes_html}
-                            {observacoes_html}
+                        <div class="kanban-card" style="border-left:2px solid {cor_borda};">
+                            <div class="card-topline">
+                                <div class="card-id">#{carga_id}</div>
+                                <div>{badge_card}</div>
+                            </div>
+                            <div class="card-destination">{carga.get('destino', '') or 'Sem destino'}</div>
+                            <div class="card-meta">👤 {motorista_atual or 'Sem motorista'} &nbsp; 🚛 {veiculo_atual or 'Sem veículo'}</div>
+                            <div class="card-deadline">Entrega: <strong>{entrega_br or '—'}</strong></div>
                         </div>
-                        """)
+                    """)
 
                     # ==================================================
-                    # SELETOR DE STATUS COMPACTO E BOTÕES DE AÇÃO
+                    # MENU DE AÇÕES DO CARTÃO
                     # ==================================================
-                    col_sel_status, col_acoes = st.columns([4, 1.35])
-
-                    with col_sel_status:
-                        novo_status_selecionado = st.selectbox(
-                            "Mover para:",
-                            colunas_status,
-                            index=colunas_status.index(status) if status in colunas_status else 0,
-                            key=f"select_status_{carga_id}",
-                            label_visibility="collapsed"
-                        )
-                        
-                        if novo_status_selecionado != status:
-                            campos_status = {"status": novo_status_selecionado}
-                            if novo_status_selecionado == "Em Trânsito / Viagem Iniciada" and not carga.get("data_hora_saida_real"):
-                                campos_status["data_hora_saida_real"] = iso_agora_br()
-                            if novo_status_selecionado == "Entregue / Concluído":
-                                campos_status["data_conclusao"] = str(hoje_br())
-                                if not carga.get("data_hora_entrega_real"):
-                                    campos_status["data_hora_entrega_real"] = iso_agora_br()
-                            
-                            sucesso = atualizar_campos_documento("cargas", carga_id, campos_status)
-                            if sucesso:
-                                carga["status"] = novo_status_selecionado
-                                if "data_conclusao" in campos_status:
-                                    carga["data_conclusao"] = campos_status["data_conclusao"]
-                                st.session_state[f"editando_{carga_id}"] = False
-                                st.rerun()
+                    col_espaco, col_acoes = st.columns([6, 1.15])
 
                     with col_acoes:
                         if hasattr(st, "popover"):
                             with st.popover("•••", use_container_width=True):
                                 st.caption(f"Planejamento #{carga_id}")
-                                if st.button("✏️ Editar", key=f"btn_edit_{carga_id}", use_container_width=True):
+
+                                novo_status_selecionado = st.selectbox(
+                                    "Mover para",
+                                    colunas_status,
+                                    index=colunas_status.index(status) if status in colunas_status else 0,
+                                    key=f"select_status_{carga_id}",
+                                )
+
+                                if novo_status_selecionado != status:
+                                    if st.button("↪ Atualizar status", key=f"mover_{carga_id}", use_container_width=True):
+                                        campos_status = {"status": novo_status_selecionado}
+
+                                        if novo_status_selecionado == "Em Trânsito / Viagem Iniciada" and not carga.get("data_hora_saida_real"):
+                                            campos_status["data_hora_saida_real"] = iso_agora_br()
+
+                                        if novo_status_selecionado == "Entregue / Concluído":
+                                            campos_status["data_conclusao"] = str(hoje_br())
+                                            if not carga.get("data_hora_entrega_real"):
+                                                campos_status["data_hora_entrega_real"] = iso_agora_br()
+
+                                        sucesso = atualizar_campos_documento("cargas", carga_id, campos_status)
+                                        if sucesso:
+                                            carga.update(campos_status)
+                                            st.session_state[f"editando_{carga_id}"] = False
+                                            st.rerun()
+
+                                st.markdown("---")
+
+                                if st.button("✏️ Editar carga", key=f"btn_edit_{carga_id}", use_container_width=True):
                                     st.session_state[f"editando_{carga_id}"] = not st.session_state.get(f"editando_{carga_id}", False)
                                     st.rerun()
 
-                                if st.button("🗑️ Excluir", key=f"btn_del_{carga_id}", use_container_width=True):
+                                if st.button("🗑️ Excluir carga", key=f"btn_del_{carga_id}", use_container_width=True):
                                     st.session_state[f"confirmar_exclusao_{carga_id}"] = True
                                     st.rerun()
                         else:
@@ -1277,7 +1499,6 @@ if menu == "📋 Torre de Controle":
                                 st.session_state[f"confirmar_exclusao_{carga_id}"] = False
                                 st.rerun()
 
-                    st.markdown("<hr style='margin: 10px 0; border-color: #243145;'>", unsafe_allow_html=True)
 
                     # ==================================================
                     # FORMULÁRIO DE EDIÇÃO
@@ -1844,3 +2065,9 @@ elif menu == "📈 Relatórios":
                 mime="application/pdf",
                 use_container_width=True
             )
+
+
+st.markdown(
+    '<div class="app-footer">Sistema de Gestão de Cargas e Logística • Todos os direitos reservados</div>',
+    unsafe_allow_html=True,
+)
